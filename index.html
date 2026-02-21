@@ -100,6 +100,11 @@
       border: 1px solid rgba(95,160,95,0.35);
       background: rgba(95,160,95,0.08);
     }
+    .difficulty.medium {
+      color: #c0a040;
+      border: 1px solid rgba(192,160,64,0.35);
+      background: rgba(192,160,64,0.08);
+    }
     .difficulty.hard {
       color: #c07840;
       border: 1px solid rgba(192,120,64,0.35);
@@ -385,6 +390,14 @@
           <span class="difficulty easy">4 pieces · Easy</span>
         </div>
       </div>
+      <div class="puzzle-card" data-puzzle="origami-bird">
+        <div class="card-preview" id="preview-origami-bird"></div>
+        <div class="card-info">
+          <h2>Origami Bird</h2>
+          <span class="difficulty medium">5 pieces · Medium</span>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -419,6 +432,8 @@
   </div>
 
   <script src="models/bridge.js"></script>
+  <script src="models/origami-bird.js"></script>
+
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -470,12 +485,37 @@
       seamsByPiece: { 0: [0], 1: [0, 1], 2: [1, 2], 3: [2, 3], 4: [3, 4], 5: [4, 5], 6: [5] },
     };
 
+    const ORIGAMI_BIRD_GLB  = window.ORIGAMI_BIRD_GLB;
+    const ORIGAMI_CRANE_GLB = window.ORIGAMI_CRANE_GLB;
+
     const BRIDGE = {
       id:           'bridge',
       type:         'glb',
       url:          BRIDGE_GLB,            // base64 data URL — avoids file:// fetch restrictions
       totalPieces:  4,
       snapDistance: 0.45,   // tighter than default — each slice is ~1 unit wide
+    };
+
+    const ORIGAMI_BIRD = {
+      id:                 'origami-bird',
+      type:               'glb',
+      url:                ORIGAMI_BIRD_GLB,
+      totalPieces:        5,
+      snapDistance:       0.45,
+      useMeshParts:       true,
+      wireframeThreshold: 0,
+    };
+
+    const ORIGAMI_CRANE = {
+      id:                 'origami-crane',
+      type:               'glb',
+      url:                ORIGAMI_CRANE_GLB,
+      totalPieces:        6,
+      snapDistance:       0.45,
+      equalTriSlices:     true,
+      wireframeThreshold: 0,
+      keepOriginalTexture: true,
+      pieceNames:         ['Left Wing', 'Neck', 'Beak', 'Body', 'Tail', 'Right Wing'],
     };
 
     // ── Constants ─────────────────────────────────────────────────────────────────
@@ -601,7 +641,10 @@
     // ── GLB Puzzle Loader ──────────────────────────────────────────────────────────
     // Loads a GLB, applies all transforms, centres+normalises the geometry,
     // then slices it into numPieces sections along the X axis.
-    function sliceGLBIntoPieces(url, numPieces) {
+    // options.equalTriSlices=true distributes ~equal triangle counts per slice
+    // instead of equal X-width intervals (avoids near-empty wing-tip slices).
+    function sliceGLBIntoPieces(url, numPieces, options = {}) {
+      const {equalTriSlices = false} = options;
       return new Promise((resolve, reject) => {
         new GLTFLoader().load(url, gltf => {
           // Find first mesh in the scene graph
@@ -626,45 +669,71 @@
 
           const bb     = geo.boundingBox;
           const xMin   = bb.min.x, xMax = bb.max.x;
-          const step   = (xMax - xMin) / numPieces;
           const posA   = geo.attributes.position;
           const nrmA   = geo.attributes.normal;
+          const uvA    = geo.attributes.uv;
+          const srcMaterial = src.material;
           const idxArr = geo.index ? geo.index.array : null;
           const tris   = idxArr ? idxArr.length / 3 : posA.count / 3;
 
-          // Bucket each triangle into a slice by its centroid X
-          const slices = Array.from({length: numPieces}, () => ({p: [], n: []}));
+          // Collect every triangle with its centroid X
+          const triData = [];
           for (let t = 0; t < tris; t++) {
             const i0 = idxArr ? idxArr[t*3]   : t*3;
             const i1 = idxArr ? idxArr[t*3+1] : t*3+1;
             const i2 = idxArr ? idxArr[t*3+2] : t*3+2;
-            const cx = (posA.getX(i0) + posA.getX(i1) + posA.getX(i2)) / 3;
-            const s  = Math.min(numPieces - 1, Math.floor((cx - xMin) / step));
+            triData.push({cx: (posA.getX(i0)+posA.getX(i1)+posA.getX(i2))/3, i0, i1, i2});
+          }
+
+          // Determine slice boundary X positions
+          let bounds;
+          if (equalTriSlices && tris > 0) {
+            // Sort by centroid X, split into N groups of equal triangle count
+            const sorted = [...triData].sort((a, b) => a.cx - b.cx);
+            bounds = [xMin];
+            for (let i = 1; i < numPieces; i++) {
+              const at = Math.min(Math.round(i * tris / numPieces), tris - 1);
+              bounds.push((sorted[at - 1].cx + sorted[at].cx) / 2);
+            }
+            bounds.push(xMax);
+          } else {
+            // Equal X-width intervals (original behaviour)
+            const step = (xMax - xMin) / numPieces;
+            bounds = Array.from({length: numPieces + 1}, (_, i) => xMin + i * step);
+          }
+
+          // Bucket each triangle into the correct slice
+          const slices = Array.from({length: numPieces}, () => ({p: [], n: [], u: []}));
+          for (const {cx, i0, i1, i2} of triData) {
+            let s = numPieces - 1;
+            for (let si = 0; si < numPieces - 1; si++) {
+              if (cx < bounds[si + 1]) { s = si; break; }
+            }
             for (const i of [i0, i1, i2]) {
               slices[s].p.push(posA.getX(i), posA.getY(i), posA.getZ(i));
               if (nrmA) slices[s].n.push(nrmA.getX(i), nrmA.getY(i), nrmA.getZ(i));
+              if (uvA)  slices[s].u.push(uvA.getX(i), uvA.getY(i));
             }
           }
 
-          // Build a BufferGeometry per slice, translate so local origin = slice centre
-          const targets   = slices.map((_, i) => new THREE.Vector3(xMin + (i + 0.5) * step, 0, 0));
+          // Build a BufferGeometry per slice; target = centre X of each slice's range
+          const targets   = Array.from({length: numPieces}, (_, i) =>
+            new THREE.Vector3((bounds[i] + bounds[i + 1]) / 2, 0, 0));
           const pieceGeos = slices.map((s, i) => {
             const g = new THREE.BufferGeometry();
             g.setAttribute('position', new THREE.Float32BufferAttribute(s.p, 3));
             if (s.n.length) g.setAttribute('normal', new THREE.Float32BufferAttribute(s.n, 3));
+            if (s.u.length) g.setAttribute('uv',     new THREE.Float32BufferAttribute(s.u, 2));
             g.translate(-targets[i].x, 0, 0);
             return g;
           });
 
-          // Compute cross-section intersection points at each seam plane
+          // Compute cross-section intersection points at each seam plane (actual boundaries)
           const seamCrossSections = [];
           for (let s = 0; s < numPieces - 1; s++) {
-            const xSeam = xMin + (s + 1) * step;
+            const xSeam = bounds[s + 1];
             const pts = [];
-            for (let t = 0; t < tris; t++) {
-              const i0 = idxArr ? idxArr[t*3]   : t*3;
-              const i1 = idxArr ? idxArr[t*3+1] : t*3+1;
-              const i2 = idxArr ? idxArr[t*3+2] : t*3+2;
+            for (const {i0, i1, i2} of triData) {
               const v = [
                 [posA.getX(i0), posA.getY(i0), posA.getZ(i0)],
                 [posA.getX(i1), posA.getY(i1), posA.getZ(i1)],
@@ -681,23 +750,116 @@
             seamCrossSections.push(pts);
           }
 
-          resolve({fullGeo: geo, pieceGeos, targets, bb, seamCrossSections});
+          resolve({fullGeo: geo, pieceGeos, targets, bb, seamCrossSections, srcMaterial});
+        }, undefined, reject);
+      });
+    }
+
+    // Loads a GLB and uses each Mesh object in the scene graph as a separate puzzle piece.
+    // All mesh geometries are world-transformed, centred+normalised together, then split
+    // back out with their original per-mesh materials preserved.
+    function sliceGLBByParts(url) {
+      return new Promise((resolve, reject) => {
+        new GLTFLoader().load(url, gltf => {
+          // Collect every mesh in scene order
+          const meshes = [];
+          gltf.scene.traverse(c => { if (c.isMesh) meshes.push(c); });
+          if (meshes.length === 0) { reject(new Error('No meshes found in GLB')); return; }
+
+          // Apply world transforms → world-space geometries
+          const worldGeos = meshes.map(m => {
+            m.updateWorldMatrix(true, false);
+            const g = m.geometry.clone();
+            g.applyMatrix4(m.matrixWorld);
+            return g;
+          });
+
+          // Combined bounding box → centre + normalise so max dimension = 4
+          const combinedBB = new THREE.Box3();
+          worldGeos.forEach(g => { g.computeBoundingBox(); combinedBB.union(g.boundingBox); });
+          const ctr = new THREE.Vector3();
+          combinedBB.getCenter(ctr);
+          const sz = new THREE.Vector3();
+          combinedBB.getSize(sz);
+          const sf = 4 / Math.max(sz.x, sz.y, sz.z);
+          worldGeos.forEach(g => {
+            g.translate(-ctr.x, -ctr.y, -ctr.z);
+            g.scale(sf, sf, sf);
+            g.computeBoundingBox();
+          });
+
+          // Recompute combined bb after transform
+          const bb = new THREE.Box3();
+          worldGeos.forEach(g => bb.union(g.boundingBox));
+
+          // Build fullGeo for wireframe by merging all pieces at their world positions
+          // (must be done BEFORE translating each piece to its local origin)
+          const allPos = [];
+          worldGeos.forEach(g => {
+            const posA = g.attributes.position;
+            const idxA = g.index;
+            const tris = idxA ? idxA.count / 3 : posA.count / 3;
+            for (let t = 0; t < tris; t++) {
+              const i0 = idxA ? idxA.array[t*3]   : t*3;
+              const i1 = idxA ? idxA.array[t*3+1] : t*3+1;
+              const i2 = idxA ? idxA.array[t*3+2] : t*3+2;
+              allPos.push(
+                posA.getX(i0), posA.getY(i0), posA.getZ(i0),
+                posA.getX(i1), posA.getY(i1), posA.getZ(i1),
+                posA.getX(i2), posA.getY(i2), posA.getZ(i2),
+              );
+            }
+          });
+          const fullGeo = new THREE.BufferGeometry();
+          fullGeo.setAttribute('position', new THREE.Float32BufferAttribute(allPos, 3));
+
+          // Target = XY centroid of each piece projected onto the Z=0 drag plane.
+          // Z is intentionally zeroed so the 3D snap-distance check can be satisfied
+          // even though dragging is constrained to the Z=0 plane.
+          const targets = worldGeos.map(g => {
+            const c = new THREE.Vector3();
+            g.boundingBox.getCenter(c);
+            c.z = 0;  // project to drag plane
+            return c;
+          });
+
+          // pieceGeos: translate each piece in XY so its centroid aligns with its target;
+          // Z is left untouched so each piece retains its natural depth in the assembled model.
+          const pieceGeos = worldGeos.map((g, i) => {
+            const t = targets[i];
+            g.translate(-t.x, -t.y, 0);
+            g.computeBoundingBox();
+            return g;
+          });
+
+          // Per-mesh materials (handle multi-material meshes by using the first slot)
+          const srcMaterials = meshes.map(m => Array.isArray(m.material) ? m.material[0] : m.material);
+
+          resolve({ fullGeo, pieceGeos, targets, bb, seamCrossSections: [], srcMaterials });
         }, undefined, reject);
       });
     }
 
     async function loadGLBPuzzle(config) {
-      const {fullGeo, pieceGeos, targets, bb, seamCrossSections} = await sliceGLBIntoPieces(config.url, config.totalPieces);
+      let fullGeo, pieceGeos, targets, bb, seamCrossSections, srcMaterial, srcMaterials;
+      if (config.useMeshParts) {
+        ({fullGeo, pieceGeos, targets, bb, seamCrossSections, srcMaterials} =
+          await sliceGLBByParts(config.url));
+      } else {
+        ({fullGeo, pieceGeos, targets, bb, seamCrossSections, srcMaterial} =
+          await sliceGLBIntoPieces(config.url, config.totalPieces, {equalTriSlices: !!config.equalTriSlices}));
+      }
 
-      // Wireframe guide (full bridge outline) — 1° threshold shows all structural edges
-      const edgesGeo = new THREE.EdgesGeometry(fullGeo, 1);
+      // Wireframe guide — configurable threshold (0 = all edges, good for flat origami faces)
+      const edgesGeo = new THREE.EdgesGeometry(fullGeo, config.wireframeThreshold ?? 1);
       wireframeMat   = new THREE.LineBasicMaterial({color: 0xC9A84C, transparent: true, opacity: 0.4});
       wireframe      = new THREE.LineSegments(edgesGeo, wireframeMat);
       wireframe.scale.setScalar(1.01);
       scene.add(wireframe);
 
       const PIECE_COLORS = [0xC87941, 0xB85C2A, 0x7AAFA0, 0xD4A24E];
-      const N     = config.totalPieces;
+      const useOriginal = !!config.keepOriginalTexture;
+      const N     = pieceGeos.length;
       const halfW = trayCamera.right;
       const slotW = (halfW * 2) / N;
       const slots = shuffleIndices(N);
@@ -706,7 +868,11 @@
         const color = PIECE_COLORS[i % PIECE_COLORS.length];
 
         // Main mesh — added to scene only while being dragged / once placed
-        const matM = new THREE.MeshStandardMaterial({color, roughness: 0.92, metalness: 0.06});
+        const matM = config.useMeshParts
+          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) m.emissive?.setRGB(0.10, 0.10, 0.12); return m; })()
+          : (useOriginal
+              ? srcMaterial.clone()
+              : new THREE.MeshStandardMaterial({color, roughness: 0.92, metalness: 0.06}));
         const mM   = new THREE.Mesh(pieceGeos[i], matM);
         mM.userData = {pieceId: i, placed: false, targetPosition: targets[i], targetAnim: null, baseMat: matM};
         mainMeshes.push(mM);
@@ -717,7 +883,11 @@
         const tSz  = new THREE.Vector3();
         tGeo.boundingBox.getSize(tSz);
         const tScale = 0.5 / Math.max(tSz.x, tSz.y, tSz.z);
-        const matT   = new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08});
+        const matT = config.useMeshParts
+          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) m.emissive?.setRGB(0.10, 0.10, 0.12); return m; })()
+          : (useOriginal
+              ? srcMaterial.clone()
+              : new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08}));
         const mT     = new THREE.Mesh(tGeo, matT);
         const slot   = slots[i];
         const tx     = ((slot + 0.5) / N * 2 - 1) * halfW * 0.9;
@@ -772,6 +942,7 @@
         (seamsByPiece[s+1] ??= []).push(s);
       });
       activePuzzleConfig.seamsByPiece = seamsByPiece;
+      activePuzzleConfig.totalPieces  = N;   // sync in case useMeshParts inferred piece count
 
       // Position camera to frame the bridge
       const bbSz = new THREE.Vector3();
@@ -783,7 +954,7 @@
       controls.update();
 
       gameState.placed = 0; gameState.complete = false; gameState.spinAngle = 0;
-      progressEl.textContent = `0 / ${config.totalPieces} placed`;
+      progressEl.textContent = `0 / ${N} placed`;
       timerEl.textContent    = '0:00';
     }
 
@@ -1101,7 +1272,12 @@
     document.querySelectorAll('.puzzle-card').forEach(card => {
       card.addEventListener('click', () => {
         const id = card.dataset.puzzle;
-        startPuzzle(id === 'kintsugi' ? KINTSUGI : id === 'amphora' ? AMPHORA : BRIDGE);
+        const cfg = id === 'kintsugi'      ? KINTSUGI
+                  : id === 'amphora'       ? AMPHORA
+                  : id === 'origami-bird'  ? ORIGAMI_BIRD
+
+                  : BRIDGE;
+        startPuzzle(cfg);
       });
     });
 
@@ -1204,7 +1380,7 @@
     createMiniPreview('preview-kintsugi', KINTSUGI);
     createMiniPreview('preview-amphora',  AMPHORA);
 
-    function createGLBMiniPreview(containerId, url) {
+    function createGLBMiniPreview(containerId, url, keepOriginalMaterial = false) {
       const container = document.getElementById(containerId);
       const mScene  = new THREE.Scene();
       mScene.add(new THREE.AmbientLight(0xfff5e0, 0.55));
@@ -1229,11 +1405,13 @@
         gltf.scene.position.sub(ctr);
         const sz = new THREE.Vector3(); box.getSize(sz);
         gltf.scene.scale.setScalar(4 / Math.max(sz.x, sz.y, sz.z));
-        // Apply earthy ceramic material to match the game palette
-        gltf.scene.traverse(c => {
-          if (c.isMesh) c.material = new THREE.MeshStandardMaterial(
-            {color: 0xC87941, roughness: 0.85, metalness: 0.06, flatShading: true});
-        });
+        // Apply earthy ceramic material to match the game palette (unless original is preferred)
+        if (!keepOriginalMaterial) {
+          gltf.scene.traverse(c => {
+            if (c.isMesh) c.material = new THREE.MeshStandardMaterial(
+              {color: 0xC87941, roughness: 0.85, metalness: 0.06, flatShading: true});
+          });
+        }
         rg.add(gltf.scene);
         // Refit camera now we know the actual scaled size
         const box2 = new THREE.Box3().setFromObject(gltf.scene);
@@ -1245,7 +1423,8 @@
       miniPreviews.push({renderer: mRenderer, scene: mScene, camera: mCamera, rotGroup: rg});
     }
 
-    createGLBMiniPreview('preview-bridge', BRIDGE_GLB);
+    createGLBMiniPreview('preview-bridge',        BRIDGE_GLB);
+    createGLBMiniPreview('preview-origami-bird',  ORIGAMI_BIRD_GLB, true);
 
     // ── Render Loop ────────────────────────────────────────────────────────────────
     const clock = new THREE.Clock();
