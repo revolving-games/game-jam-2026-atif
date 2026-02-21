@@ -644,13 +644,38 @@
             return g;
           });
 
-          resolve({fullGeo: geo, pieceGeos, targets, bb});
+          // Compute cross-section intersection points at each seam plane
+          const seamCrossSections = [];
+          for (let s = 0; s < numPieces - 1; s++) {
+            const xSeam = xMin + (s + 1) * step;
+            const pts = [];
+            for (let t = 0; t < tris; t++) {
+              const i0 = idxArr ? idxArr[t*3]   : t*3;
+              const i1 = idxArr ? idxArr[t*3+1] : t*3+1;
+              const i2 = idxArr ? idxArr[t*3+2] : t*3+2;
+              const v = [
+                [posA.getX(i0), posA.getY(i0), posA.getZ(i0)],
+                [posA.getX(i1), posA.getY(i1), posA.getZ(i1)],
+                [posA.getX(i2), posA.getY(i2), posA.getZ(i2)],
+              ];
+              for (let e = 0; e < 3; e++) {
+                const [ax, ay, az] = v[e], [bx, by, bz] = v[(e+1)%3];
+                if ((ax - xSeam) * (bx - xSeam) < 0) {
+                  const f = (xSeam - ax) / (bx - ax);
+                  pts.push(new THREE.Vector3(xSeam, ay + f*(by-ay), az + f*(bz-az)));
+                }
+              }
+            }
+            seamCrossSections.push(pts);
+          }
+
+          resolve({fullGeo: geo, pieceGeos, targets, bb, seamCrossSections});
         }, undefined, reject);
       });
     }
 
     async function loadGLBPuzzle(config) {
-      const {fullGeo, pieceGeos, targets, bb} = await sliceGLBIntoPieces(config.url, config.totalPieces);
+      const {fullGeo, pieceGeos, targets, bb, seamCrossSections} = await sliceGLBIntoPieces(config.url, config.totalPieces);
 
       // Wireframe guide (full bridge outline) — 1° threshold shows all structural edges
       const edgesGeo = new THREE.EdgesGeometry(fullGeo, 1);
@@ -688,6 +713,39 @@
         trayScene.add(mT);
         trayMeshes.push(mT);
       }
+
+      // Build gold seam rings from cross-section geometry
+      const seamsByPiece = {};
+      seamCrossSections.forEach((rawPts, s) => {
+        // Deduplicate nearby intersection points
+        const EPS = 0.025;
+        const unique = [];
+        for (const p of rawPts) {
+          if (!unique.some(u => u.distanceTo(p) < EPS)) unique.push(p);
+        }
+        if (unique.length < 5) return;
+
+        // Sort points by angle around the cross-section centroid (Y-Z plane)
+        const cY = unique.reduce((a, p) => a + p.y, 0) / unique.length;
+        const cZ = unique.reduce((a, p) => a + p.z, 0) / unique.length;
+        unique.sort((a, b) => Math.atan2(a.z - cZ, a.y - cY) - Math.atan2(b.z - cZ, b.y - cY));
+
+        const curve = new THREE.CatmullRomCurve3(unique, true);
+        const geo   = new THREE.TubeGeometry(curve, Math.max(32, unique.length * 3), 0.022, 6, true);
+        const mat   = new THREE.MeshStandardMaterial({
+          color: 0xD4AF37, metalness: 0.85, roughness: 0.20,
+          transparent: true, opacity: 0,
+          emissive: 0xB8860B, emissiveIntensity: 0.6,
+        });
+        const ring = new THREE.Mesh(geo, mat);
+        scene.add(ring);
+        seamRings.push(ring);
+
+        // Both adjacent pieces reveal this seam when placed
+        (seamsByPiece[s]   ??= []).push(s);
+        (seamsByPiece[s+1] ??= []).push(s);
+      });
+      activePuzzleConfig.seamsByPiece = seamsByPiece;
 
       // Position camera to frame the bridge
       const bbSz = new THREE.Vector3();
@@ -964,6 +1022,7 @@
       if (piece.position.distanceTo(piece.userData.targetPosition) < snapD) {
         piece.userData.placed    = true;
         piece.userData.targetAnim = piece.userData.targetPosition.clone();
+        if (activePuzzleConfig?.type === 'glb') piece.rotation.set(0, 0, 0);
         piece.material = piece.userData.baseMat.clone();
         piece.material.emissive.setHex(0x5C3800);
         piece.material.emissiveIntensity = 0.6;
@@ -974,9 +1033,9 @@
       }
     });
 
-    // Scroll while holding a piece rotates it
+    // Scroll while holding a piece rotates it (lathe puzzles only — GLB pieces have a fixed orientation)
     renderer.domElement.addEventListener('wheel', e => {
-      if (activePiece) { e.preventDefault(); activePiece.rotation.y -= e.deltaY * 0.005; }
+      if (activePiece && activePuzzleConfig?.type !== 'glb') { e.preventDefault(); activePiece.rotation.y -= e.deltaY * 0.005; }
     }, { passive: false });
 
     // ── Button / Card Listeners ────────────────────────────────────────────────────
@@ -1182,10 +1241,11 @@
         }
       }
 
-      // Completion: wireframe fade + celebratory spin
+      // Completion: wireframe fade + celebratory spin (lathe puzzles only — GLB pieces sit at
+      // different X positions so rotating each around its own Y axis breaks the assembly)
       if (gameState.complete && wireframeMat) {
         if (wireframeMat.opacity > 0) wireframeMat.opacity = Math.max(0, wireframeMat.opacity - delta * 0.35);
-        if (gameState.spinAngle < Math.PI * 2) {
+        if (activePuzzleConfig?.type !== 'glb' && gameState.spinAngle < Math.PI * 2) {
           const step = delta * 0.9;
           gameState.spinAngle += step;
           for (const p of mainMeshes) if (p.userData.placed) p.rotation.y += step;
