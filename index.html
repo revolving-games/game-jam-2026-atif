@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kintsugi Puzzles</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='wg' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23FFE566'/><stop offset='1' stop-color='%23B8860B'/></linearGradient><linearGradient id='sg' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='%23C9A84C'/><stop offset='0.5' stop-color='%23FFD700'/><stop offset='1' stop-color='%23C9A84C'/></linearGradient></defs><path d='M10 30 Q3 26 3 18 Q3 9 10 5 Q13 3 16 3 Q19 3 22 5 Q29 9 29 18 Q29 26 22 30Z' fill='none' stroke='url(%23wg)' stroke-width='2'/><path d='M3 18 Q9 15 16 16 Q23 15 29 18' stroke='url(%23sg)' stroke-width='2.4' fill='none' stroke-linecap='round'/></svg>">
+  <script type="importmap">
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+  } }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(ellipse 70% 65% at 50% 36%, #1f0e04 0%, transparent 68%),
+        radial-gradient(ellipse 120% 100% at 50% 50%, #0e0818 0%, #04020a 100%);
+    }
+    canvas { display: block; touch-action: none; }
+    .card-preview canvas { width: 100% !important; height: 100% !important; }
+
+    /* ── Menu Screen ── */
+    #menu-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(ellipse 70% 65% at 50% 36%, #1f0e04 0%, transparent 68%),
+        radial-gradient(ellipse 120% 100% at 50% 50%, #0e0818 0%, #04020a 100%);
+      z-index: 100;
+    }
+    #menu-screen h1 {
+      color: #d4af37;
+      font-size: 42px;
+      font-weight: 300;
+      letter-spacing: 8px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .tagline {
+      color: rgba(180,140,40,0.5);
+      font-size: 13px;
+      letter-spacing: 3px;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+    .puzzle-cards {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .puzzle-card {
+      width: 280px;
+      background: rgba(8,4,1,0.85);
+      border: 1px solid rgba(180,140,40,0.2);
+      border-radius: 4px;
+      padding: 24px;
+      cursor: pointer;
+      transition: border-color 0.25s, transform 0.25s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+    }
+    .puzzle-card:hover {
+      border-color: #d4af37;
+      transform: scale(1.03);
+    }
+    .card-preview {
+      width: 250px;
+      height: 250px;
+      border-radius: 2px;
+      overflow: hidden;
+      background: rgba(4,2,10,0.6);
+    }
+    .puzzle-card h2 {
+      color: #d4af37;
+      font-size: 18px;
+      font-weight: 400;
+      letter-spacing: 3px;
+      text-align: center;
+    }
+    .difficulty {
+      font-size: 11px;
+      letter-spacing: 2px;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .difficulty.easy {
+      color: #5fa05f;
+      border: 1px solid rgba(95,160,95,0.35);
+      background: rgba(95,160,95,0.08);
+    }
+    .difficulty.hard {
+      color: #c07840;
+      border: 1px solid rgba(192,120,64,0.35);
+      background: rgba(192,120,64,0.08);
+    }
+
+    /* ── Game Screen ── */
+    #game-screen { display: none; }
+
+    /* ── Tray ── */
+    #tray {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 160px;
+      background: #070402;
+      border-top: 1px solid rgba(180,140,40,0.2);
+      z-index: 20;
+      overflow: hidden;
+    }
+    #tray > canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      cursor: default;
+    }
+
+    /* ── HUD ── */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      bottom: 160px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #progress {
+      position: absolute;
+      top: 18px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(8,4,1,0.78);
+      color: #d4af37;
+      padding: 7px 22px;
+      border-radius: 20px;
+      font-size: 13px;
+      letter-spacing: 2px;
+      border: 1px solid rgba(180,140,40,0.28);
+      white-space: nowrap;
+    }
+    #timer {
+      position: absolute;
+      top: 18px; right: 18px;
+      background: rgba(8,4,1,0.78);
+      color: #d4af37;
+      padding: 7px 22px;
+      border-radius: 20px;
+      font-size: 13px;
+      letter-spacing: 2px;
+      border: 1px solid rgba(180,140,40,0.28);
+    }
+    #back-btn {
+      position: absolute;
+      top: 18px; left: 18px;
+      background: rgba(12,6,1,0.85);
+      color: #c9a84c;
+      border: 1px solid rgba(180,140,40,0.35);
+      padding: 7px 18px;
+      border-radius: 6px;
+      font-size: 11px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      pointer-events: all;
+    }
+    #back-btn:hover { border-color: #d4af37; }
+    #hint {
+      position: absolute;
+      bottom: 14px; left: 18px;
+      color: rgba(180,140,40,0.28);
+      font-size: 10px;
+      line-height: 2.1;
+      letter-spacing: 1px;
+    }
+    #reset-btn {
+      position: absolute;
+      bottom: 14px; right: 18px;
+      background: rgba(12,6,1,0.85);
+      color: #c9a84c;
+      border: 1px solid rgba(180,140,40,0.35);
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-size: 11px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      pointer-events: all;
+    }
+    #reset-btn:hover { border-color: #d4af37; }
+
+    /* ── Win Screen ── */
+    @keyframes winSlideIn {
+      from { opacity: 0; transform: translateY(-50%) translateX(32px); }
+      to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+    }
+    #win-screen {
+      display: none;
+      position: fixed;
+      right: 28px;
+      top: calc(50% - 80px); /* offset up slightly to clear tray */
+      transform: translateY(-50%);
+      z-index: 200;
+      animation: winSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .win-box {
+      background: rgba(6,3,0,0.94);
+      border: 1px solid rgba(212,175,55,0.35);
+      border-left: 2px solid rgba(212,175,55,0.7);
+      border-radius: 3px;
+      padding: 28px 32px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      min-width: 220px;
+      box-shadow: -12px 0 40px rgba(0,0,0,0.5), 0 4px 24px rgba(0,0,0,0.4);
+    }
+    .win-kanji {
+      color: #d4af37;
+      font-size: 22px;
+      letter-spacing: 6px;
+    }
+    .win-box h2 {
+      color: #f0e0a0;
+      font-size: 20px;
+      font-weight: 300;
+      letter-spacing: 5px;
+      margin-top: -4px;
+    }
+    .win-stats {
+      display: flex;
+      gap: 28px;
+      margin: 4px 0;
+    }
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+    .stat span {
+      color: #d4af37;
+      font-size: 26px;
+      font-weight: 300;
+      letter-spacing: 1px;
+    }
+    .stat label {
+      color: rgba(180,140,40,0.5);
+      font-size: 9px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+    .win-divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(212,175,55,0.18);
+    }
+    .win-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .win-actions button {
+      background: rgba(12,6,1,0.85);
+      color: #c9a84c;
+      border: 1px solid rgba(180,140,40,0.30);
+      padding: 9px 0;
+      border-radius: 4px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .win-actions button:first-child {
+      border-color: rgba(212,175,55,0.5);
+      color: #d4af37;
+    }
+    .win-actions button:hover { border-color: #d4af37; }
+
+    /* ── Card info wrapper (desktop: centred column, mobile: left-aligned) ── */
+    .card-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+
+    /* ── Mobile win slide-up keyframe ── */
+    @keyframes winSlideUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    /* ── Responsive — mobile ── */
+    @media (max-width: 600px) {
+      /* Menu: scrollable, top-aligned */
+      #menu-screen {
+        justify-content: flex-start;
+        padding: 48px 20px 32px;
+        overflow-y: auto;
+      }
+      #menu-screen h1 { font-size: 26px; letter-spacing: 4px; }
+      .tagline { margin-bottom: 24px; }
+
+      /* Cards: horizontal layout — preview left, text right */
+      .puzzle-cards { flex-direction: column; gap: 12px; width: 100%; align-items: center; }
+      .puzzle-card {
+        flex-direction: row;
+        width: min(100%, 420px);
+        padding: 14px 16px;
+        gap: 16px;
+        align-items: center;
+      }
+      .card-preview { width: 113px; height: 113px; flex-shrink: 0; }
+      .card-info { align-items: flex-start; text-align: left; }
+      .puzzle-card h2 { font-size: 15px; letter-spacing: 2px; }
+
+      /* HUD: tighter sizing to avoid crowding */
+      #back-btn  { top: 12px; left: 12px; padding: 6px 11px; font-size: 10px; letter-spacing: 1px; }
+      #progress  { top: 12px; font-size: 11px; padding: 5px 13px; letter-spacing: 1px; }
+      #timer     { top: 12px; right: 12px; padding: 5px 13px; font-size: 11px; letter-spacing: 1px; }
+      #hint      { display: none; }
+      #reset-btn { bottom: 12px; right: 12px; padding: 7px 14px; font-size: 10px; }
+
+      /* Win screen: bottom-centre panel instead of right-side */
+      #win-screen {
+        right: auto;
+        left: 50%;
+        top: auto;
+        bottom: calc(160px + 14px);
+        transform: translateX(-50%);
+        animation: winSlideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      .win-box {
+        min-width: unset;
+        width: min(calc(100vw - 40px), 380px);
+        padding: 20px 22px;
+        gap: 12px;
+        border-left-width: 1px;
+        border-top: 2px solid rgba(212,175,55,0.6);
+        box-shadow: 0 -8px 32px rgba(0,0,0,0.55);
+      }
+      .win-stats { gap: 24px; }
+      .stat span  { font-size: 22px; }
+      .win-actions { flex-direction: row; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ MENU SCREEN ═══ -->
+  <div id="menu-screen">
+    <h1>金継ぎ · Kintsugi</h1>
+    <p class="tagline">Choose a puzzle to restore</p>
+    <div class="puzzle-cards">
+      <div class="puzzle-card" data-puzzle="kintsugi">
+        <div class="card-preview" id="preview-kintsugi"></div>
+        <div class="card-info">
+          <h2>Ceramic Pot</h2>
+          <span class="difficulty easy">4 pieces · Easy</span>
+        </div>
+      </div>
+      <div class="puzzle-card" data-puzzle="amphora">
+        <div class="card-preview" id="preview-amphora"></div>
+        <div class="card-info">
+          <h2>Ancient Amphora</h2>
+          <span class="difficulty hard">7 pieces · Hard</span>
+        </div>
+      </div>
+      <div class="puzzle-card" data-puzzle="bridge">
+        <div class="card-preview" id="preview-bridge"></div>
+        <div class="card-info">
+          <h2>Small Bridge</h2>
+          <span class="difficulty easy">4 pieces · Easy</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ GAME SCREEN ═══ -->
+  <div id="game-screen">
+    <!-- renderer.domElement inserted before #tray at runtime -->
+    <div id="tray"></div>
+    <div id="hud">
+      <button id="back-btn">← BACK</button>
+      <div id="progress">0 / 4 placed</div>
+      <div id="timer">0:00</div>
+      <div id="hint">drag a piece up from the tray<br>scroll to rotate while holding</div>
+      <button id="reset-btn">RESET</button>
+    </div>
+  </div>
+
+  <!-- ═══ WIN SCREEN ═══ -->
+  <div id="win-screen">
+    <div class="win-box">
+      <div class="win-kanji">金継ぎ</div>
+      <h2>Complete</h2>
+      <div class="win-stats">
+        <div class="stat"><span id="win-time">0:00</span><label>Time</label></div>
+        <div class="stat"><span id="win-pieces">4/4</span><label>Pieces</label></div>
+      </div>
+      <div class="win-divider"></div>
+      <div class="win-actions">
+        <button id="play-again-btn">PLAY AGAIN</button>
+        <button id="menu-btn">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="models/bridge.js"></script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+
+    // Bridge GLB is loaded as a global by bridge.js (regular script — avoids file:// ES module CORS block)
+    const BRIDGE_GLB = window.BRIDGE_GLB;
+    // ── Puzzle Configs (inlined to avoid file:// CORS restriction) ────────────────
+    const KINTSUGI = {
+      id: 'kintsugi',
+      totalPieces: 4,
+      segments: 8,
+      profilePoints: [
+        [0.05, 0.00], [0.80, 0.05], [1.20, 0.50], [1.35, 1.00],
+        [1.10, 1.80], [0.85, 2.00], [1.10, 2.20], [1.15, 2.30],
+      ],
+      pieceDefs: [
+        { id: 0, name: 'Base',     sliceStart: 0, sliceEnd: 3, color: 0xC87941 },
+        { id: 1, name: 'Belly',    sliceStart: 2, sliceEnd: 5, color: 0xB85C2A },
+        { id: 2, name: 'Shoulder', sliceStart: 4, sliceEnd: 7, color: 0x7AAFA0 },
+        { id: 3, name: 'Rim',      sliceStart: 6, sliceEnd: 8, color: 0xD4A24E },
+      ],
+      seams: [{ y: 0.50, r: 1.20 }, { y: 1.80, r: 1.10 }, { y: 2.20, r: 1.10 }],
+      seamsByPiece: { 0: [0], 1: [0, 1], 2: [1, 2], 3: [2] },
+    };
+
+    const AMPHORA = {
+      id: 'amphora',
+      totalPieces: 7,
+      segments: 8,
+      profilePoints: [
+        [0.04, 0.00], [0.50, 0.06], [0.70, 0.40], [1.00, 0.85],
+        [1.22, 1.40], [1.15, 1.80], [0.85, 2.15], [0.55, 2.40],
+        [0.42, 2.60], [0.40, 2.75], [0.52, 2.88], [0.58, 3.00],
+      ],
+      pieceDefs: [
+        { id: 0, name: 'Base',       sliceStart: 0,  sliceEnd: 3,  color: 0xC47B3E },
+        { id: 1, name: 'Lower Body', sliceStart: 2,  sliceEnd: 5,  color: 0xB85030 },
+        { id: 2, name: 'Belly',      sliceStart: 4,  sliceEnd: 6,  color: 0xCC6640 },
+        { id: 3, name: 'Upper Body', sliceStart: 5,  sliceEnd: 8,  color: 0xA04525 },
+        { id: 4, name: 'Neck Base',  sliceStart: 7,  sliceEnd: 9,  color: 0xC07040 },
+        { id: 5, name: 'Neck',       sliceStart: 8,  sliceEnd: 11, color: 0x8A5030 },
+        { id: 6, name: 'Rim',        sliceStart: 10, sliceEnd: 12, color: 0xD4A050 },
+      ],
+      seams: [
+        { y: 0.40, r: 0.70 }, { y: 1.40, r: 1.22 }, { y: 1.80, r: 1.15 },
+        { y: 2.40, r: 0.55 }, { y: 2.60, r: 0.42 }, { y: 2.88, r: 0.52 },
+      ],
+      seamsByPiece: { 0: [0], 1: [0, 1], 2: [1, 2], 3: [2, 3], 4: [3, 4], 5: [4, 5], 6: [5] },
+    };
+
+    const BRIDGE = {
+      id:           'bridge',
+      type:         'glb',
+      url:          BRIDGE_GLB,            // base64 data URL — avoids file:// fetch restrictions
+      totalPieces:  4,
+      snapDistance: 0.45,   // tighter than default — each slice is ~1 unit wide
+    };
+
+    // ── Constants ─────────────────────────────────────────────────────────────────
+    const TRAY_H = 160;
+    const GOLD   = 0xD4AF37;
+    const SNAP_D = 0.95;
+    const cW = () => window.innerWidth;
+    const cH = () => window.innerHeight - TRAY_H;
+
+    // ── App State ──────────────────────────────────────────────────────────────────
+    let APP_STATE          = 'menu';
+    let activePuzzleConfig = null;
+    let completeTimeout    = null;
+
+    const menuScreen = document.getElementById('menu-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const winScreen  = document.getElementById('win-screen');
+    const progressEl = document.getElementById('progress');
+    const timerEl    = document.getElementById('timer');
+
+    function showScreen(name) {
+      menuScreen.style.display = name === 'menu'                                  ? 'flex'  : 'none';
+      gameScreen.style.display = name === 'playing' || name === 'complete'        ? 'block' : 'none';
+      winScreen.style.display  = name === 'complete'                              ? 'block' : 'none';
+    }
+
+    // ── Timer ──────────────────────────────────────────────────────────────────────
+    let timerStart = null, elapsedSeconds = 0;
+    function startTimer()  { timerStart = Date.now(); elapsedSeconds = 0; }
+    function stopTimer()   {
+      if (timerStart !== null) {
+        elapsedSeconds = Math.floor((Date.now() - timerStart) / 1000);
+        timerStart     = null;
+      }
+    }
+    function formatTime(s) { return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+    // ── Main Scene ─────────────────────────────────────────────────────────────────
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, cW() / cH(), 0.1, 100);
+    camera.position.set(0, 1.15, 8);
+    camera.lookAt(0, 1.15, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(cW(), cH());
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Insert main canvas into game-screen, before the tray
+    gameScreen.insertBefore(renderer.domElement, document.getElementById('tray'));
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.15, 0);
+    controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+    controls.minDistance  = 3;
+    controls.maxDistance  = 20;
+    controls.update();
+
+    renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xfff5e0, 0.38));
+    const sun  = new THREE.DirectionalLight(0xffeec0, 1.1);  sun.position.set(3, 5, 4);   scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xaa6600, 0.22); fill.position.set(-4, 0, 2); scene.add(fill);
+    const glow = new THREE.PointLight(0xFFAA22, 0.8, 9);     scene.add(glow);
+
+    // Floating dust (permanent atmosphere)
+    const DUST = 120;
+    const dustPos   = new Float32Array(DUST * 3);
+    const dustSpeed = new Float32Array(DUST);
+    for (let i = 0; i < DUST; i++) {
+      dustPos[i*3]   = (Math.random() - 0.5) * 9;
+      dustPos[i*3+1] = Math.random() * 8 - 2;
+      dustPos[i*3+2] = (Math.random() - 0.5) * 5;
+      dustSpeed[i]   = 0.04 + Math.random() * 0.08;
+    }
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+    scene.add(new THREE.Points(dustGeo,
+      new THREE.PointsMaterial({ color: GOLD, size: 0.045, transparent: true, opacity: 0.32, sizeAttenuation: true })));
+
+    // ── Tray Scene ─────────────────────────────────────────────────────────────────
+    const trayScene = new THREE.Scene();
+    trayScene.add(new THREE.AmbientLight(0xfff5e0, 0.5));
+    const trayDir  = new THREE.DirectionalLight(0xffeec0, 1.15); trayDir.position.set(2, 4, 3);   trayScene.add(trayDir);
+    const trayFill = new THREE.DirectionalLight(0xaa6600, 0.3);  trayFill.position.set(-3, 0, 2); trayScene.add(trayFill);
+
+    const trayRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    trayRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    trayRenderer.setSize(cW(), TRAY_H);
+    trayRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.getElementById('tray').appendChild(trayRenderer.domElement);
+
+    let trayCamera;
+    function buildTrayCamera() {
+      const halfH = 1.05, halfW = halfH * (cW() / TRAY_H);
+      trayCamera = new THREE.OrthographicCamera(-halfW, halfW, halfH * 1.1, -halfH * 0.5, 0.1, 30);
+      trayCamera.position.set(0, 0.8, 7);
+      trayCamera.lookAt(0, 0.5, 0);
+    }
+    buildTrayCamera();
+
+    // ── Puzzle Engine ──────────────────────────────────────────────────────────────
+    let mainMeshes      = [];
+    let trayMeshes      = [];
+    let seamRings       = [];
+    let wireframe       = null;
+    let wireframeMat    = null;
+    let gameState       = { placed: 0, complete: false, spinAngle: 0 };
+    let activeParticles = [];
+
+    // ── GLB Puzzle Loader ──────────────────────────────────────────────────────────
+    // Loads a GLB, applies all transforms, centres+normalises the geometry,
+    // then slices it into numPieces sections along the X axis.
+    function sliceGLBIntoPieces(url, numPieces) {
+      return new Promise((resolve, reject) => {
+        new GLTFLoader().load(url, gltf => {
+          // Find first mesh in the scene graph
+          let src = null;
+          gltf.scene.traverse(c => { if (c.isMesh && !src) src = c; });
+
+          src.updateWorldMatrix(true, false);
+          const geo = src.geometry.clone();
+          geo.applyMatrix4(src.matrixWorld);
+
+          // Centre at origin, then normalise so max dimension = 4
+          geo.computeBoundingBox();
+          const ctr = new THREE.Vector3();
+          geo.boundingBox.getCenter(ctr);
+          geo.translate(-ctr.x, -ctr.y, -ctr.z);
+          geo.computeBoundingBox();
+          const sz = new THREE.Vector3();
+          geo.boundingBox.getSize(sz);
+          const sf = 4 / Math.max(sz.x, sz.y, sz.z);
+          geo.scale(sf, sf, sf);
+          geo.computeBoundingBox();
+
+          const bb     = geo.boundingBox;
+          const xMin   = bb.min.x, xMax = bb.max.x;
+          const step   = (xMax - xMin) / numPieces;
+          const posA   = geo.attributes.position;
+          const nrmA   = geo.attributes.normal;
+          const idxArr = geo.index ? geo.index.array : null;
+          const tris   = idxArr ? idxArr.length / 3 : posA.count / 3;
+
+          // Bucket each triangle into a slice by its centroid X
+          const slices = Array.from({length: numPieces}, () => ({p: [], n: []}));
+          for (let t = 0; t < tris; t++) {
+            const i0 = idxArr ? idxArr[t*3]   : t*3;
+            const i1 = idxArr ? idxArr[t*3+1] : t*3+1;
+            const i2 = idxArr ? idxArr[t*3+2] : t*3+2;
+            const cx = (posA.getX(i0) + posA.getX(i1) + posA.getX(i2)) / 3;
+            const s  = Math.min(numPieces - 1, Math.floor((cx - xMin) / step));
+            for (const i of [i0, i1, i2]) {
+              slices[s].p.push(posA.getX(i), posA.getY(i), posA.getZ(i));
+              if (nrmA) slices[s].n.push(nrmA.getX(i), nrmA.getY(i), nrmA.getZ(i));
+            }
+          }
+
+          // Build a BufferGeometry per slice, translate so local origin = slice centre
+          const targets   = slices.map((_, i) => new THREE.Vector3(xMin + (i + 0.5) * step, 0, 0));
+          const pieceGeos = slices.map((s, i) => {
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(s.p, 3));
+            if (s.n.length) g.setAttribute('normal', new THREE.Float32BufferAttribute(s.n, 3));
+            g.translate(-targets[i].x, 0, 0);
+            return g;
+          });
+
+          resolve({fullGeo: geo, pieceGeos, targets, bb});
+        }, undefined, reject);
+      });
+    }
+
+    async function loadGLBPuzzle(config) {
+      const {fullGeo, pieceGeos, targets, bb} = await sliceGLBIntoPieces(config.url, config.totalPieces);
+
+      // Wireframe guide (full bridge outline) — 1° threshold shows all structural edges
+      const edgesGeo = new THREE.EdgesGeometry(fullGeo, 1);
+      wireframeMat   = new THREE.LineBasicMaterial({color: 0xC9A84C, transparent: true, opacity: 0.4});
+      wireframe      = new THREE.LineSegments(edgesGeo, wireframeMat);
+      wireframe.scale.setScalar(1.01);
+      scene.add(wireframe);
+
+      const PIECE_COLORS = [0xC87941, 0xB85C2A, 0x7AAFA0, 0xD4A24E];
+      const N    = config.totalPieces;
+      const halfW = trayCamera.right;
+
+      for (let i = 0; i < N; i++) {
+        const color = PIECE_COLORS[i % PIECE_COLORS.length];
+
+        // Main mesh — added to scene only while being dragged / once placed
+        const matM = new THREE.MeshStandardMaterial({color, roughness: 0.92, metalness: 0.06});
+        const mM   = new THREE.Mesh(pieceGeos[i], matM);
+        mM.userData = {pieceId: i, placed: false, targetPosition: targets[i], targetAnim: null, baseMat: matM};
+        mainMeshes.push(mM);
+
+        // Tray mesh — clone, auto-scale to fit tray height
+        const tGeo = pieceGeos[i].clone();
+        tGeo.computeBoundingBox();
+        const tSz  = new THREE.Vector3();
+        tGeo.boundingBox.getSize(tSz);
+        const tScale = 0.5 / Math.max(tSz.x, tSz.y, tSz.z);
+        const matT   = new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08});
+        const mT     = new THREE.Mesh(tGeo, matT);
+        const t      = (i + 0.5) / N;
+        mT.position.set((t * 2 - 1) * halfW * 0.9, 0.35, 0);
+        mT.scale.setScalar(tScale);
+        mT.rotation.x      = -0.18;
+        mT.userData.pieceId = i;
+        trayScene.add(mT);
+        trayMeshes.push(mT);
+      }
+
+      // Position camera to frame the bridge
+      const bbSz = new THREE.Vector3();
+      bb.getSize(bbSz);
+      const camZ = Math.max(bbSz.x, bbSz.y) * 1.3 + 2;
+      camera.position.set(0, bbSz.y * 0.25, camZ);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      gameState.placed = 0; gameState.complete = false; gameState.spinAngle = 0;
+      progressEl.textContent = `0 / ${config.totalPieces} placed`;
+      timerEl.textContent    = '0:00';
+    }
+
+    // Builds an irregular gold tube ring — CatmullRom curve with noise for the kintsugi look
+    function buildSeamRing(y, r) {
+      const COUNT = 24; // control points around the ring
+      const pts   = [];
+      for (let i = 0; i < COUNT; i++) {
+        const phi = (i / COUNT) * Math.PI * 2;
+        const dy  = (Math.random() - 0.5) * 0.06;   // vertical wobble
+        const dr  = (Math.random() - 0.5) * 0.045;  // radius wobble
+        pts.push(new THREE.Vector3(
+          (r + dr) * Math.sin(phi),
+          y + dy,
+          (r + dr) * Math.cos(phi),
+        ));
+      }
+      const curve = new THREE.CatmullRomCurve3(pts, true);
+      const geo   = new THREE.TubeGeometry(curve, COUNT * 5, 0.022, 6, true);
+      const mat   = new THREE.MeshStandardMaterial({
+        color:             0xD4AF37,
+        metalness:         0.85,
+        roughness:         0.20,
+        transparent:       true,
+        opacity:           0,
+        emissive:          0xB8860B,
+        emissiveIntensity: 0.6,
+      });
+      return new THREE.Mesh(geo, mat);
+    }
+
+    // Builds LatheGeometry with bottom translated to local y=0
+    function buildPieceGeo(pts, segments) {
+      const geo = new THREE.LatheGeometry(pts, segments);
+      geo.computeBoundingBox();
+      const yMin   = geo.boundingBox.min.y;
+      const height = geo.boundingBox.max.y - yMin;
+      geo.translate(0, -yMin, 0);
+      return { geo, yMin, height };
+    }
+
+    function loadPuzzle(config) {
+      const pts = config.profilePoints.map(([x, y]) => new THREE.Vector2(x, y));
+
+      // Wireframe guide (full assembled shape)
+      const fullGeo  = new THREE.LatheGeometry(pts, config.segments);
+      const edgesGeo = new THREE.EdgesGeometry(fullGeo, 15);
+      fullGeo.dispose();
+      wireframeMat = new THREE.LineBasicMaterial({ color: 0xC9A84C, transparent: true, opacity: 0.4 });
+      wireframe    = new THREE.LineSegments(edgesGeo, wireframeMat);
+      wireframe.scale.setScalar(1.02);
+      scene.add(wireframe);
+
+      // Seam rings (irregular gold tubes at piece joints)
+      for (const { y, r } of config.seams) {
+        const ring = buildSeamRing(y, r);
+        scene.add(ring);
+        seamRings.push(ring);
+      }
+
+      // Build piece meshes (main scene + tray scene)
+      const halfW = trayCamera.right;
+      const N     = config.totalPieces;
+      for (let i = 0; i < config.pieceDefs.length; i++) {
+        const def    = config.pieceDefs[i];
+        const defPts = pts.slice(def.sliceStart, def.sliceEnd);
+
+        // Main mesh (dragged in the main scene)
+        const { geo: gM, yMin, height } = buildPieceGeo(defPts, config.segments);
+        const matM = new THREE.MeshStandardMaterial({ color: def.color, flatShading: true, roughness: 0.92, metalness: 0.06 });
+        const mM   = new THREE.Mesh(gM, matM);
+        mM.userData = {
+          pieceId:        def.id,
+          placed:         false,
+          targetPosition: new THREE.Vector3(0, yMin, 0),
+          pieceHeight:    height,
+          targetAnim:     null,
+          baseMat:        matM,
+        };
+        mainMeshes.push(mM);
+
+        // Tray mesh (separate instance, lives in trayScene)
+        const { geo: gT } = buildPieceGeo(defPts, config.segments);
+        const matT = new THREE.MeshStandardMaterial({ color: def.color, flatShading: true, roughness: 0.90, metalness: 0.08 });
+        const mT   = new THREE.Mesh(gT, matT);
+        const t    = (i + 0.5) / N;
+        mT.position.set((t * 2 - 1) * halfW * 0.9, 0.35, 0);
+        mT.scale.setScalar(0.5);
+        mT.rotation.x      = -0.18;
+        mT.userData.pieceId = def.id;
+        trayScene.add(mT);
+        trayMeshes.push(mT);
+      }
+
+      positionCameraForPuzzle(config);
+      gameState.placed = 0; gameState.complete = false; gameState.spinAngle = 0;
+      progressEl.textContent = `0 / ${config.totalPieces} placed`;
+      timerEl.textContent    = '0:00';
+    }
+
+    function teardownPuzzle() {
+      if (completeTimeout) { clearTimeout(completeTimeout); completeTimeout = null; }
+      activePiece     = null;
+      hoveredTrayMesh = null;
+      controls.enabled = true;
+      for (const m of mainMeshes)      { m.geometry.dispose(); m.material.dispose(); scene.remove(m); }
+      for (const m of trayMeshes)      { m.geometry.dispose(); m.material.dispose(); trayScene.remove(m); }
+      for (const r of seamRings)       { r.geometry.dispose(); r.material.dispose(); scene.remove(r); }
+      for (const p of activeParticles) { p.points.geometry.dispose(); p.points.material.dispose(); scene.remove(p.points); }
+      if (wireframe) { wireframe.geometry.dispose(); wireframeMat.dispose(); scene.remove(wireframe); }
+      wireframe = null; wireframeMat = null;
+      mainMeshes = []; trayMeshes = []; seamRings = []; activeParticles = [];
+    }
+
+    function positionCameraForPuzzle(config) {
+      const maxY    = Math.max(...config.profilePoints.map(([, y]) => y));
+      const centerY = maxY * 0.5;
+      camera.position.set(0, centerY, maxY * 2.2 + 2);
+      camera.lookAt(0, centerY, 0);
+      controls.target.set(0, centerY, 0);
+      controls.update();
+    }
+
+    // ── Snap Particles ─────────────────────────────────────────────────────────────
+    function spawnSnapParticles(position) {
+      const COUNT  = 20;
+      const posArr = new Float32Array(COUNT * 3);
+      const vels   = [];
+      for (let i = 0; i < COUNT; i++) {
+        posArr[i*3] = position.x; posArr[i*3+1] = position.y; posArr[i*3+2] = position.z;
+        const theta = Math.random() * Math.PI * 2;
+        const phi   = (Math.random() - 0.5) * Math.PI;
+        const spd   = 0.04 + Math.random() * 0.09;
+        vels.push(new THREE.Vector3(
+          Math.cos(phi) * Math.cos(theta) * spd,
+          Math.abs(Math.sin(phi))          * spd + 0.02,
+          Math.cos(phi) * Math.sin(theta) * spd,
+        ));
+      }
+      const pGeo = new THREE.BufferGeometry();
+      pGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+      const pMat = new THREE.PointsMaterial({ color: GOLD, size: 0.09, transparent: true, opacity: 1, sizeAttenuation: true });
+      const pts  = new THREE.Points(pGeo, pMat);
+      scene.add(pts);
+      activeParticles.push({ points: pts, vels, posArr, age: 0 });
+    }
+
+    // ── Game Logic ─────────────────────────────────────────────────────────────────
+    function onSnap(id) {
+      const piece = mainMeshes[id];
+      gameState.placed++;
+      progressEl.textContent = `${gameState.placed} / ${activePuzzleConfig.totalPieces} placed`;
+      for (const idx of (activePuzzleConfig.seamsByPiece?.[id] ?? [])) seamRings[idx].material.opacity = 1.0;
+      const pPos = piece.userData.targetPosition.clone();
+      if (piece.userData.pieceHeight) pPos.y += piece.userData.pieceHeight * 0.5;
+      spawnSnapParticles(pPos);
+      if (gameState.placed === activePuzzleConfig.totalPieces) onComplete();
+    }
+
+    function onComplete() {
+      gameState.complete = true; gameState.spinAngle = 0;
+      APP_STATE = 'complete';
+      stopTimer();
+      completeTimeout = setTimeout(() => {
+        if (APP_STATE !== 'complete') return;
+        document.getElementById('win-time').textContent   = formatTime(elapsedSeconds);
+        document.getElementById('win-pieces').textContent = `${activePuzzleConfig.totalPieces}/${activePuzzleConfig.totalPieces}`;
+        showScreen('complete');
+      }, 1800);
+    }
+
+    async function startPuzzle(config) {
+      activePuzzleConfig = config;
+      APP_STATE = 'playing';
+      showScreen('playing');
+      if (config.type === 'glb') {
+        await loadGLBPuzzle(config);
+      } else {
+        loadPuzzle(config);
+      }
+      startTimer();
+    }
+
+    function backToMenu() {
+      stopTimer();
+      teardownPuzzle();
+      APP_STATE = 'menu';
+      showScreen('menu');
+    }
+
+    // ── Drag & Drop ────────────────────────────────────────────────────────────────
+    const trayRaycaster  = new THREE.Raycaster();
+    const mainRaycaster  = new THREE.Raycaster();
+    const pointer        = new THREE.Vector2();
+    const dragPlane      = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const planeHit       = new THREE.Vector3();
+    let   activePiece    = null;
+    let   hoveredTrayMesh = null;
+
+    function trayNDC(e) {
+      const r = trayRenderer.domElement.getBoundingClientRect();
+      return new THREE.Vector2(
+         ((e.clientX - r.left) / r.width)  * 2 - 1,
+        -((e.clientY - r.top)  / r.height) * 2 + 1,
+      );
+    }
+    function mainNDC(e) {
+      pointer.x =  (e.clientX / cW()) * 2 - 1;
+      pointer.y = -(e.clientY / cH()) * 2 + 1;
+    }
+
+    // Hover glow on tray pieces
+    trayRenderer.domElement.addEventListener('pointermove', e => {
+      if (activePiece) return;
+      trayRaycaster.setFromCamera(trayNDC(e), trayCamera);
+      const hit = trayRaycaster.intersectObjects(trayMeshes.filter(m => m.visible));
+      const hov = hit.length ? hit[0].object : null;
+      if (hov !== hoveredTrayMesh) {
+        if (hoveredTrayMesh) hoveredTrayMesh.material.emissive.setHex(0x000000);
+        if (hov)             hov.material.emissive.setHex(0x3A2000);
+        hoveredTrayMesh = hov;
+      }
+      trayRenderer.domElement.style.cursor = hov ? 'grab' : 'default';
+    });
+
+    // Pick up piece from tray
+    trayRenderer.domElement.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || APP_STATE !== 'playing') return;
+      trayRaycaster.setFromCamera(trayNDC(e), trayCamera);
+      const hits = trayRaycaster.intersectObjects(trayMeshes.filter(m => m.visible));
+      if (!hits.length) return;
+      const id = hits[0].object.userData.pieceId;
+      if (mainMeshes[id].userData.placed) return;
+      if (hoveredTrayMesh) { hoveredTrayMesh.material.emissive.setHex(0x000000); hoveredTrayMesh = null; }
+      trayMeshes[id].visible     = false;
+      activePiece                = mainMeshes[id];
+      activePiece.userData.targetAnim = null;
+      scene.add(activePiece);
+      controls.enabled = false;
+      mainNDC(e);
+      mainRaycaster.setFromCamera(pointer, camera);
+      mainRaycaster.ray.intersectPlane(dragPlane, planeHit);
+      activePiece.position.copy(planeHit);
+      trayRenderer.domElement.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (!activePiece) return;
+      mainNDC(e);
+      mainRaycaster.setFromCamera(pointer, camera);
+      mainRaycaster.ray.intersectPlane(dragPlane, planeHit);
+      activePiece.position.copy(planeHit);
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!activePiece) return;
+      const piece  = activePiece; activePiece = null;
+      controls.enabled = true;
+      trayRenderer.domElement.style.cursor = 'default';
+      const id    = piece.userData.pieceId;
+      const snapD = activePuzzleConfig?.snapDistance ?? SNAP_D;
+      if (piece.position.distanceTo(piece.userData.targetPosition) < snapD) {
+        piece.userData.placed    = true;
+        piece.userData.targetAnim = piece.userData.targetPosition.clone();
+        piece.material = piece.userData.baseMat.clone();
+        piece.material.emissive.setHex(0x5C3800);
+        piece.material.emissiveIntensity = 0.6;
+        onSnap(id);
+      } else {
+        scene.remove(piece);
+        trayMeshes[id].visible = true;
+      }
+    });
+
+    // Scroll while holding a piece rotates it
+    renderer.domElement.addEventListener('wheel', e => {
+      if (activePiece) { e.preventDefault(); activePiece.rotation.y -= e.deltaY * 0.005; }
+    }, { passive: false });
+
+    // ── Button / Card Listeners ────────────────────────────────────────────────────
+    document.querySelectorAll('.puzzle-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = card.dataset.puzzle;
+        startPuzzle(id === 'kintsugi' ? KINTSUGI : id === 'amphora' ? AMPHORA : BRIDGE);
+      });
+    });
+
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      stopTimer();
+      teardownPuzzle();
+      showScreen('playing');
+      if (activePuzzleConfig.type === 'glb') {
+        await loadGLBPuzzle(activePuzzleConfig);
+      } else {
+        loadPuzzle(activePuzzleConfig);
+      }
+      startTimer();
+      APP_STATE = 'playing';
+    });
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+      if (gameState.placed > 0 && !gameState.complete) {
+        if (!confirm('Return to main menu? Your progress will be lost.')) return;
+      }
+      backToMenu();
+    });
+
+    document.getElementById('play-again-btn').addEventListener('click', async () => {
+      showScreen('playing');
+      teardownPuzzle();
+      if (activePuzzleConfig.type === 'glb') {
+        await loadGLBPuzzle(activePuzzleConfig);
+      } else {
+        loadPuzzle(activePuzzleConfig);
+      }
+      startTimer();
+      APP_STATE = 'playing';
+    });
+
+    document.getElementById('menu-btn').addEventListener('click', () => backToMenu());
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(cW(), cH());
+      camera.aspect = cW() / cH();
+      camera.updateProjectionMatrix();
+      trayRenderer.setSize(cW(), TRAY_H);
+      buildTrayCamera();
+      const halfW = trayCamera.right;
+      const N     = trayMeshes.length;
+      trayMeshes.forEach((m, i) => { m.position.x = ((i + 0.5) / N * 2 - 1) * halfW * 0.9; });
+    });
+
+    // ── Menu Card Mini Previews ────────────────────────────────────────────────────
+    const miniPreviews = [];
+
+    function createMiniPreview(containerId, config) {
+      const container = document.getElementById(containerId);
+      const pts  = config.profilePoints.map(([x, y]) => new THREE.Vector2(x, y));
+      const maxY = Math.max(...config.profilePoints.map(([, y]) => y));
+      const ctrY = maxY / 2;
+
+      const mScene = new THREE.Scene();
+      mScene.add(new THREE.AmbientLight(0xfff5e0, 0.55));
+      const dl = new THREE.DirectionalLight(0xffeec0, 1.1);  dl.position.set(3, 5, 4);   mScene.add(dl);
+      const fl = new THREE.DirectionalLight(0xaa6600, 0.25); fl.position.set(-3, 0, 2);  mScene.add(fl);
+
+      // Rotation group (centered so the assembled pot is at world origin)
+      const rg = new THREE.Group();
+      rg.position.y = -ctrY;
+      mScene.add(rg);
+
+      // Full wireframe overlay
+      const fGeo = new THREE.LatheGeometry(pts, config.segments);
+      const eGeo = new THREE.EdgesGeometry(fGeo, 15);
+      fGeo.dispose();
+      const wf = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({ color: 0xC9A84C, transparent: true, opacity: 0.5 }));
+      wf.scale.setScalar(1.02);
+      rg.add(wf);
+
+      // Assembled piece meshes
+      for (const def of config.pieceDefs) {
+        const defPts = pts.slice(def.sliceStart, def.sliceEnd);
+        const { geo, yMin } = buildPieceGeo(defPts, config.segments);
+        const mesh = new THREE.Mesh(geo,
+          new THREE.MeshStandardMaterial({ color: def.color, flatShading: true, roughness: 0.90, metalness: 0.06 }));
+        mesh.position.y = yMin;
+        rg.add(mesh);
+      }
+
+      const mRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      mRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      mRenderer.setSize(250, 250);
+      mRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      container.appendChild(mRenderer.domElement);
+
+      const mCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 50);
+      mCamera.position.set(0, 0, maxY * 2.0 + 0.5);
+      mCamera.lookAt(0, 0, 0);
+
+      miniPreviews.push({ renderer: mRenderer, scene: mScene, camera: mCamera, rotGroup: rg });
+    }
+
+    createMiniPreview('preview-kintsugi', KINTSUGI);
+    createMiniPreview('preview-amphora',  AMPHORA);
+
+    function createGLBMiniPreview(containerId, url) {
+      const container = document.getElementById(containerId);
+      const mScene  = new THREE.Scene();
+      mScene.add(new THREE.AmbientLight(0xfff5e0, 0.55));
+      const dl = new THREE.DirectionalLight(0xffeec0, 1.1);  dl.position.set(3, 5, 4);  mScene.add(dl);
+      const fl = new THREE.DirectionalLight(0xaa6600, 0.25); fl.position.set(-3, 0, 2); mScene.add(fl);
+      const rg = new THREE.Group(); mScene.add(rg);
+
+      const mRenderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+      mRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      mRenderer.setSize(250, 250);
+      mRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      container.appendChild(mRenderer.domElement);
+
+      const mCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 50);
+      mCamera.position.set(0, 1, 8);
+      mCamera.lookAt(0, 0, 0);
+
+      new GLTFLoader().load(url, gltf => {
+        // Centre and scale to max-dim 4
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const ctr = new THREE.Vector3(); box.getCenter(ctr);
+        gltf.scene.position.sub(ctr);
+        const sz = new THREE.Vector3(); box.getSize(sz);
+        gltf.scene.scale.setScalar(4 / Math.max(sz.x, sz.y, sz.z));
+        // Apply earthy ceramic material to match the game palette
+        gltf.scene.traverse(c => {
+          if (c.isMesh) c.material = new THREE.MeshStandardMaterial(
+            {color: 0xC87941, roughness: 0.85, metalness: 0.06, flatShading: true});
+        });
+        rg.add(gltf.scene);
+        // Refit camera now we know the actual scaled size
+        const box2 = new THREE.Box3().setFromObject(gltf.scene);
+        const sz2  = new THREE.Vector3(); box2.getSize(sz2);
+        mCamera.position.set(0, sz2.y * 0.25, sz2.x * 1.3 + 1);
+        mCamera.lookAt(0, 0, 0);
+      });
+
+      miniPreviews.push({renderer: mRenderer, scene: mScene, camera: mCamera, rotGroup: rg});
+    }
+
+    createGLBMiniPreview('preview-bridge', BRIDGE_GLB);
+
+    // ── Render Loop ────────────────────────────────────────────────────────────────
+    const clock = new THREE.Clock();
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      const delta   = clock.getDelta();
+      const elapsed = clock.elapsedTime;
+
+      // Mini previews (ambient slow rotation)
+      for (const p of miniPreviews) {
+        p.rotGroup.rotation.y += delta * 0.5;
+        p.renderer.render(p.scene, p.camera);
+      }
+
+      // Animated gold point light
+      glow.position.set(Math.sin(elapsed * 0.45) * 2.5, 1.2, Math.cos(elapsed * 0.45) * 2.5 + 1);
+
+      // Floating dust
+      for (let i = 0; i < DUST; i++) {
+        dustPos[i*3+1] += dustSpeed[i] * delta;
+        if (dustPos[i*3+1] > 6) {
+          dustPos[i*3]   = (Math.random() - 0.5) * 9;
+          dustPos[i*3+1] = -2;
+          dustPos[i*3+2] = (Math.random() - 0.5) * 5;
+        }
+      }
+      dustGeo.attributes.position.needsUpdate = true;
+
+      // Ease-out lerp for snapping pieces
+      for (const p of mainMeshes) {
+        if (!p.userData.targetAnim) continue;
+        const dist  = p.position.distanceTo(p.userData.targetAnim);
+        const speed = dist > 0.5 ? 0.16 : 0.10;
+        p.position.lerp(p.userData.targetAnim, speed);
+        if (dist < 0.004) { p.position.copy(p.userData.targetAnim); p.userData.targetAnim = null; }
+      }
+
+      // Snap particle bursts
+      for (let j = activeParticles.length - 1; j >= 0; j--) {
+        const p = activeParticles[j];
+        p.age += delta;
+        p.points.material.opacity = Math.max(0, 1.0 - p.age / 0.6);
+        for (let i = 0; i < p.vels.length; i++) {
+          p.posArr[i*3]   += p.vels[i].x;
+          p.posArr[i*3+1] += p.vels[i].y;
+          p.posArr[i*3+2] += p.vels[i].z;
+        }
+        p.points.geometry.attributes.position.needsUpdate = true;
+        if (p.age >= 0.6) {
+          p.points.geometry.dispose(); p.points.material.dispose();
+          scene.remove(p.points); activeParticles.splice(j, 1);
+        }
+      }
+
+      // Completion: wireframe fade + celebratory spin
+      if (gameState.complete && wireframeMat) {
+        if (wireframeMat.opacity > 0) wireframeMat.opacity = Math.max(0, wireframeMat.opacity - delta * 0.35);
+        if (gameState.spinAngle < Math.PI * 2) {
+          const step = delta * 0.9;
+          gameState.spinAngle += step;
+          for (const p of mainMeshes) if (p.userData.placed) p.rotation.y += step;
+          for (const r of seamRings)  r.rotation.y += step;
+        }
+      }
+
+      // Live timer display
+      if (APP_STATE === 'playing' && timerStart !== null)
+        timerEl.textContent = formatTime(Math.floor((Date.now() - timerStart) / 1000));
+
+      // Tray: gentle idle rotation so pieces read as 3D
+      trayMeshes.forEach((m, i) => { if (m.visible) m.rotation.y = Math.sin(elapsed * 0.5 + i * 1.3) * 0.28; });
+
+      controls.update();
+      trayRenderer.render(trayScene, trayCamera);
+      renderer.render(scene, camera);
+    })();
+  </script>
+</body>
+</html>
