@@ -1241,15 +1241,24 @@
         }
       }
 
-      // Completion: wireframe fade + celebratory spin (lathe puzzles only — GLB pieces sit at
-      // different X positions so rotating each around its own Y axis breaks the assembly)
+      // Completion: wireframe fade + celebratory spin
+      // Lathe pieces sit at x=0,z=0 so orbiting world-Y is identical to local-Y spin.
+      // GLB pieces sit at different X positions, so we also orbit their world-space
+      // position around world Y — keeping the whole assembly spinning as a unit.
       if (gameState.complete && wireframeMat) {
         if (wireframeMat.opacity > 0) wireframeMat.opacity = Math.max(0, wireframeMat.opacity - delta * 0.35);
-        if (activePuzzleConfig?.type !== 'glb' && gameState.spinAngle < Math.PI * 2) {
+        if (gameState.spinAngle < Math.PI * 2) {
           const step = delta * 0.9;
           gameState.spinAngle += step;
-          for (const p of mainMeshes) if (p.userData.placed) p.rotation.y += step;
-          for (const r of seamRings)  r.rotation.y += step;
+          const cos = Math.cos(step), sin = Math.sin(step);
+          for (const p of mainMeshes) {
+            if (!p.userData.placed) continue;
+            const x = p.position.x, z = p.position.z;
+            p.position.x = cos * x - sin * z;
+            p.position.z = sin * x + cos * z;
+            p.rotation.y += step;
+          }
+          for (const r of seamRings) r.rotation.y += step;
         }
       }
 
