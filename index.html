@@ -585,6 +585,7 @@
     let wireframeMat    = null;
     let gameState       = { placed: 0, complete: false, spinAngle: 0 };
     let activeParticles = [];
+    let completionGroup = null;
 
     // ── GLB Puzzle Loader ──────────────────────────────────────────────────────────
     // Loads a GLB, applies all transforms, centres+normalises the geometry,
@@ -863,6 +864,12 @@
       activePiece     = null;
       hoveredTrayMesh = null;
       controls.enabled = true;
+      // Reparent any pieces/rings back to scene so the removal loops below can find them
+      if (completionGroup) {
+        while (completionGroup.children.length) scene.add(completionGroup.children[0]);
+        scene.remove(completionGroup);
+        completionGroup = null;
+      }
       for (const m of mainMeshes)      { m.geometry.dispose(); m.material.dispose(); scene.remove(m); }
       for (const m of trayMeshes)      { m.geometry.dispose(); m.material.dispose(); trayScene.remove(m); }
       for (const r of seamRings)       { r.geometry.dispose(); r.material.dispose(); scene.remove(r); }
@@ -921,6 +928,15 @@
       gameState.complete = true; gameState.spinAngle = 0;
       APP_STATE = 'complete';
       stopTimer();
+
+      // Group all placed pieces + seam rings so the whole assembly spins as one unit
+      completionGroup = new THREE.Group();
+      scene.add(completionGroup);
+      for (const p of mainMeshes) {
+        if (p.userData.placed) { scene.remove(p); completionGroup.add(p); }
+      }
+      for (const r of seamRings) { scene.remove(r); completionGroup.add(r); }
+
       completeTimeout = setTimeout(() => {
         if (APP_STATE !== 'complete') return;
         document.getElementById('win-time').textContent   = formatTime(elapsedSeconds);
@@ -1242,23 +1258,14 @@
       }
 
       // Completion: wireframe fade + celebratory spin
-      // Lathe pieces sit at x=0,z=0 so orbiting world-Y is identical to local-Y spin.
-      // GLB pieces sit at different X positions, so we also orbit their world-space
-      // position around world Y — keeping the whole assembly spinning as a unit.
+      // All placed pieces and seam rings are parented to completionGroup so the
+      // whole assembly rotates as a single unit around world Y.
       if (gameState.complete && wireframeMat) {
         if (wireframeMat.opacity > 0) wireframeMat.opacity = Math.max(0, wireframeMat.opacity - delta * 0.35);
-        if (gameState.spinAngle < Math.PI * 2) {
+        if (completionGroup && gameState.spinAngle < Math.PI * 2) {
           const step = delta * 0.9;
           gameState.spinAngle += step;
-          const cos = Math.cos(step), sin = Math.sin(step);
-          for (const p of mainMeshes) {
-            if (!p.userData.placed) continue;
-            const x = p.position.x, z = p.position.z;
-            p.position.x = cos * x - sin * z;
-            p.position.z = sin * x + cos * z;
-            p.rotation.y += step;
-          }
-          for (const r of seamRings) r.rotation.y += step;
+          completionGroup.rotation.y += step;
         }
       }
 
