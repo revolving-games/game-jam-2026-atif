@@ -586,6 +586,17 @@
     let gameState       = { placed: 0, complete: false, spinAngle: 0 };
     let activeParticles = [];
     let completionGroup = null;
+    let trayHitZones    = [];
+
+    // Fisher-Yates shuffle of [0..n-1]
+    function shuffleIndices(n) {
+      const a = Array.from({length: n}, (_, i) => i);
+      for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
 
     // ── GLB Puzzle Loader ──────────────────────────────────────────────────────────
     // Loads a GLB, applies all transforms, centres+normalises the geometry,
@@ -686,8 +697,10 @@
       scene.add(wireframe);
 
       const PIECE_COLORS = [0xC87941, 0xB85C2A, 0x7AAFA0, 0xD4A24E];
-      const N    = config.totalPieces;
+      const N     = config.totalPieces;
       const halfW = trayCamera.right;
+      const slotW = (halfW * 2) / N;
+      const slots = shuffleIndices(N);
 
       for (let i = 0; i < N; i++) {
         const color = PIECE_COLORS[i % PIECE_COLORS.length];
@@ -698,7 +711,7 @@
         mM.userData = {pieceId: i, placed: false, targetPosition: targets[i], targetAnim: null, baseMat: matM};
         mainMeshes.push(mM);
 
-        // Tray mesh — clone, auto-scale to fit tray height
+        // Tray mesh — clone, auto-scale to fit tray height, placed in a random slot
         const tGeo = pieceGeos[i].clone();
         tGeo.computeBoundingBox();
         const tSz  = new THREE.Vector3();
@@ -706,13 +719,25 @@
         const tScale = 0.5 / Math.max(tSz.x, tSz.y, tSz.z);
         const matT   = new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08});
         const mT     = new THREE.Mesh(tGeo, matT);
-        const t      = (i + 0.5) / N;
-        mT.position.set((t * 2 - 1) * halfW * 0.9, 0.35, 0);
+        const slot   = slots[i];
+        const tx     = ((slot + 0.5) / N * 2 - 1) * halfW * 0.9;
+        mT.position.set(tx, 0.35, 0);
         mT.scale.setScalar(tScale);
-        mT.rotation.x      = -0.18;
+        mT.rotation.x       = -0.18;
         mT.userData.pieceId = i;
+        mT.userData.traySlot = slot;
         trayScene.add(mT);
         trayMeshes.push(mT);
+
+        // Invisible hit-zone plane for larger touch/click area
+        const hzGeo = new THREE.PlaneGeometry(slotW * 0.92, 1.8);
+        const hzMat = new THREE.MeshBasicMaterial({ visible: false });
+        const hz    = new THREE.Mesh(hzGeo, hzMat);
+        hz.position.set(tx, 0.3, 0);
+        hz.userData.pieceId  = i;
+        hz.userData.traySlot = slot;
+        trayScene.add(hz);
+        trayHitZones.push(hz);
       }
 
       // Build gold seam rings from cross-section geometry
@@ -822,6 +847,8 @@
       // Build piece meshes (main scene + tray scene)
       const halfW = trayCamera.right;
       const N     = config.totalPieces;
+      const slotW = (halfW * 2) / N;
+      const slots = shuffleIndices(N);
       for (let i = 0; i < config.pieceDefs.length; i++) {
         const def    = config.pieceDefs[i];
         const defPts = pts.slice(def.sliceStart, def.sliceEnd);
@@ -840,17 +867,29 @@
         };
         mainMeshes.push(mM);
 
-        // Tray mesh (separate instance, lives in trayScene)
+        // Tray mesh (separate instance, placed in a random slot)
         const { geo: gT } = buildPieceGeo(defPts, config.segments);
         const matT = new THREE.MeshStandardMaterial({ color: def.color, flatShading: true, roughness: 0.90, metalness: 0.08 });
         const mT   = new THREE.Mesh(gT, matT);
-        const t    = (i + 0.5) / N;
-        mT.position.set((t * 2 - 1) * halfW * 0.9, 0.35, 0);
+        const slot = slots[i];
+        const tx   = ((slot + 0.5) / N * 2 - 1) * halfW * 0.9;
+        mT.position.set(tx, 0.35, 0);
         mT.scale.setScalar(0.5);
-        mT.rotation.x      = -0.18;
-        mT.userData.pieceId = def.id;
+        mT.rotation.x       = -0.18;
+        mT.userData.pieceId  = def.id;
+        mT.userData.traySlot = slot;
         trayScene.add(mT);
         trayMeshes.push(mT);
+
+        // Invisible hit-zone plane for larger touch/click area
+        const hzGeo = new THREE.PlaneGeometry(slotW * 0.92, 1.8);
+        const hzMat = new THREE.MeshBasicMaterial({ visible: false });
+        const hz    = new THREE.Mesh(hzGeo, hzMat);
+        hz.position.set(tx, 0.3, 0);
+        hz.userData.pieceId  = def.id;
+        hz.userData.traySlot = slot;
+        trayScene.add(hz);
+        trayHitZones.push(hz);
       }
 
       positionCameraForPuzzle(config);
@@ -872,11 +911,12 @@
       }
       for (const m of mainMeshes)      { m.geometry.dispose(); m.material.dispose(); scene.remove(m); }
       for (const m of trayMeshes)      { m.geometry.dispose(); m.material.dispose(); trayScene.remove(m); }
+      for (const h of trayHitZones)    { h.geometry.dispose(); h.material.dispose(); trayScene.remove(h); }
       for (const r of seamRings)       { r.geometry.dispose(); r.material.dispose(); scene.remove(r); }
       for (const p of activeParticles) { p.points.geometry.dispose(); p.points.material.dispose(); scene.remove(p.points); }
       if (wireframe) { wireframe.geometry.dispose(); wireframeMat.dispose(); scene.remove(wireframe); }
       wireframe = null; wireframeMat = null;
-      mainMeshes = []; trayMeshes = []; seamRings = []; activeParticles = [];
+      mainMeshes = []; trayMeshes = []; trayHitZones = []; seamRings = []; activeParticles = [];
     }
 
     function positionCameraForPuzzle(config) {
@@ -989,8 +1029,9 @@
     trayRenderer.domElement.addEventListener('pointermove', e => {
       if (activePiece) return;
       trayRaycaster.setFromCamera(trayNDC(e), trayCamera);
-      const hit = trayRaycaster.intersectObjects(trayMeshes.filter(m => m.visible));
-      const hov = hit.length ? hit[0].object : null;
+      const hit    = trayRaycaster.intersectObjects([...trayMeshes.filter(m => m.visible), ...trayHitZones.filter(h => h.visible)]);
+      const hitObj = hit.length ? hit[0].object : null;
+      const hov    = hitObj ? trayMeshes[hitObj.userData.pieceId] : null;
       if (hov !== hoveredTrayMesh) {
         if (hoveredTrayMesh) hoveredTrayMesh.material.emissive.setHex(0x000000);
         if (hov)             hov.material.emissive.setHex(0x3A2000);
@@ -1003,12 +1044,13 @@
     trayRenderer.domElement.addEventListener('pointerdown', e => {
       if (e.button !== 0 || APP_STATE !== 'playing') return;
       trayRaycaster.setFromCamera(trayNDC(e), trayCamera);
-      const hits = trayRaycaster.intersectObjects(trayMeshes.filter(m => m.visible));
+      const hits = trayRaycaster.intersectObjects([...trayMeshes.filter(m => m.visible), ...trayHitZones.filter(h => h.visible)]);
       if (!hits.length) return;
       const id = hits[0].object.userData.pieceId;
       if (mainMeshes[id].userData.placed) return;
       if (hoveredTrayMesh) { hoveredTrayMesh.material.emissive.setHex(0x000000); hoveredTrayMesh = null; }
       trayMeshes[id].visible     = false;
+      trayHitZones[id].visible   = false;
       activePiece                = mainMeshes[id];
       activePiece.userData.targetAnim = null;
       scene.add(activePiece);
@@ -1045,7 +1087,8 @@
         onSnap(id);
       } else {
         scene.remove(piece);
-        trayMeshes[id].visible = true;
+        trayMeshes[id].visible   = true;
+        trayHitZones[id].visible = true;
       }
     });
 
@@ -1104,7 +1147,8 @@
       buildTrayCamera();
       const halfW = trayCamera.right;
       const N     = trayMeshes.length;
-      trayMeshes.forEach((m, i) => { m.position.x = ((i + 0.5) / N * 2 - 1) * halfW * 0.9; });
+      trayMeshes.forEach(m => { m.position.x = ((m.userData.traySlot + 0.5) / N * 2 - 1) * halfW * 0.9; });
+      trayHitZones.forEach(h => { h.position.x = ((h.userData.traySlot + 0.5) / N * 2 - 1) * halfW * 0.9; });
     });
 
     // ── Menu Card Mini Previews ────────────────────────────────────────────────────
