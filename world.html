@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kintsugi World · 金継ぎの世界</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='12' fill='none' stroke='%23D4AF37' stroke-width='2'/><circle cx='16' cy='16' r='4' fill='%23D4AF37'/></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: #1a1208;
+      font-family: 'Segoe UI', sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      position: fixed;
+      top: 0; left: 0;
+    }
+
+    /* ── HUD ── */
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #back-btn {
+      position: absolute;
+      top: 14px; left: 14px;
+      background: rgba(8,4,1,0.82);
+      color: #c9a84c;
+      border: 1px solid rgba(180,140,40,0.35);
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 11px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      pointer-events: all;
+      transition: border-color 0.2s;
+    }
+    #back-btn:hover { border-color: #d4af37; }
+
+    #world-title {
+      position: absolute;
+      top: 18px; left: 50%;
+      transform: translateX(-50%);
+      color: rgba(212,175,55,0.5);
+      font-size: 11px;
+      letter-spacing: 4px;
+      white-space: nowrap;
+    }
+
+    /* ── Inventory Strip ── */
+    #inventory {
+      position: absolute;
+      bottom: 14px; left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      background: rgba(8,4,1,0.82);
+      border: 1px solid rgba(180,140,40,0.22);
+      border-radius: 36px;
+      padding: 10px 18px;
+    }
+    .inv-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 40px;
+      opacity: 0.45;
+      transition: opacity 0.3s;
+    }
+    .inv-item.has-pieces { opacity: 0.82; }
+    .inv-item.restored   { opacity: 1.0; }
+    .inv-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .inv-item.restored .inv-dot {
+      border-color: #d4af37;
+      box-shadow: 0 0 8px rgba(212,175,55,0.55);
+    }
+    .inv-count {
+      color: rgba(255,255,255,0.85);
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+    .inv-label {
+      color: rgba(180,140,40,0.5);
+      font-size: 7px;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+
+    /* ── Prompt ── */
+    #prompt {
+      position: absolute;
+      bottom: 88px; left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      color: #e8d070;
+      font-size: 11px;
+      letter-spacing: 2px;
+      background: rgba(8,4,1,0.80);
+      border: 1px solid rgba(180,140,40,0.25);
+      border-radius: 20px;
+      padding: 7px 20px;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+    }
+    #prompt.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Puzzle Overlay ── */
+    #puzzle-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+    }
+    #puzzle-overlay.active { display: block; }
+    #puzzle-iframe {
+      width: 100%; height: 100%;
+      border: none;
+    }
+
+    /* ── Win Screen ── */
+    #win-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      background: radial-gradient(ellipse 120% 100% at 50% 50%, #1f0e04 0%, #04020a 100%);
+    }
+    #win-screen.active { display: flex; }
+    .win-kanji {
+      color: #d4af37;
+      font-size: 26px;
+      letter-spacing: 8px;
+      animation: fadeIn 1s ease forwards;
+    }
+    #win-screen h1 {
+      color: #f0e0a0;
+      font-size: 28px;
+      font-weight: 300;
+      letter-spacing: 6px;
+      animation: fadeIn 1.2s ease forwards;
+    }
+    #win-screen p {
+      color: rgba(180,140,40,0.55);
+      font-size: 12px;
+      letter-spacing: 3px;
+      animation: fadeIn 1.4s ease forwards;
+    }
+    .win-divider { width: 160px; height: 1px; background: rgba(212,175,55,0.2); }
+    #win-screen button {
+      background: rgba(12,6,1,0.85);
+      color: #c9a84c;
+      border: 1px solid rgba(180,140,40,0.45);
+      padding: 11px 32px;
+      border-radius: 6px;
+      font-size: 11px;
+      letter-spacing: 3px;
+      cursor: pointer;
+      animation: fadeIn 1.6s ease forwards;
+    }
+    #win-screen button:hover { border-color: #d4af37; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Mobile inventory compact ── */
+    @media (max-width: 600px) {
+      #inventory { padding: 8px 12px; gap: 6px; }
+      .inv-item   { min-width: 34px; }
+      .inv-dot    { width: 24px; height: 24px; }
+      .inv-count  { font-size: 7px; }
+      .inv-label  { font-size: 6px; }
+      #world-title { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ HUD ═══ -->
+<div id="hud">
+  <button id="back-btn" onclick="location.href='index.html'">← MENU</button>
+  <div id="world-title">金継ぎの世界 · World of Kintsugi</div>
+  <div id="inventory"></div>
+  <div id="prompt"></div>
+</div>
+
+<!-- ═══ PUZZLE OVERLAY ═══ -->
+<div id="puzzle-overlay">
+  <iframe id="puzzle-iframe" allow="autoplay"></iframe>
+</div>
+
+<!-- ═══ WIN SCREEN ═══ -->
+<div id="win-screen">
+  <div class="win-kanji">金継ぎ完成</div>
+  <h1>World Restored</h1>
+  <p>All broken things have been healed with gold</p>
+  <div class="win-divider"></div>
+  <button onclick="location.href='index.html'">RETURN TO MENU</button>
+</div>
+
+<script src="models/bridge.js"></script>
+<script src="models/origami-bird.js"></script>
+<script src="models/origami-crane.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":          "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE     from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORLD STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+const worldState = {
+  bridgeBuilt: false,
+  restored: {
+    bridge: false, kintsugi: false, 'origami-bird': false,
+    lantern: false, amphora: false, 'origami-crane': false,
+  },
+  pieces: {
+    bridge: 0, kintsugi: 0, 'origami-bird': 0,
+    lantern: 0, amphora: 0, 'origami-crane': 0,
+  },
+  required: {
+    bridge: 4, kintsugi: 4, 'origami-bird': 4,
+    lantern: 3, amphora: 4, 'origami-crane': 4,
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUZZLE DEFINITIONS  (world object metadata)
+// ═══════════════════════════════════════════════════════════════════════════════
+const PUZZLE_DEFS = [
+  { id: 'bridge',        name: 'Stone Bridge',  color: 0x9E8B6E, pos: new THREE.Vector3( 0,   0,   0  ) },
+  { id: 'kintsugi',      name: 'Kintsugi Pot',  color: 0xC87941, pos: new THREE.Vector3(-8,   0,  10  ) },
+  { id: 'origami-bird',  name: 'Origami Bird',  color: 0x9DC6D8, pos: new THREE.Vector3( 8,   0,   8  ) },
+  { id: 'lantern',       name: 'Stone Lantern', color: 0x8B9DB5, pos: new THREE.Vector3( 2,   0,  14  ) },
+  { id: 'amphora',       name: 'Amphora',       color: 0xC47B3E, pos: new THREE.Vector3(-7,   0, -10  ) },
+  { id: 'origami-crane', name: 'Origami Crane', color: 0xE8D5B7, pos: new THREE.Vector3( 7,   0, -12  ) },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PIECE SPAWNS
+// ═══════════════════════════════════════════════════════════════════════════════
+const PIECE_SPAWNS = [
+  // Bridge (4) — south, near river
+  { id: 'bridge',        x: -3.5, z:  6.5 },
+  { id: 'bridge',        x:  3.8, z:  5.8 },
+  { id: 'bridge',        x: -1.5, z:  9.2 },
+  { id: 'bridge',        x:  2.5, z:  8.0 },
+  // Kintsugi Pot (4) — south-west
+  { id: 'kintsugi',      x: -11,  z:  8   },
+  { id: 'kintsugi',      x:  -6,  z: 12   },
+  { id: 'kintsugi',      x: -9.5, z: 15   },
+  { id: 'kintsugi',      x: -13,  z: 11   },
+  // Origami Bird (4) — south-east
+  { id: 'origami-bird',  x:  6,   z:  6   },
+  { id: 'origami-bird',  x: 11.5, z: 10   },
+  { id: 'origami-bird',  x:  9,   z: 14.5 },
+  { id: 'origami-bird',  x: 13,   z:  7.5 },
+  // Stone Lantern (3) — south path
+  { id: 'lantern',       x:  1,   z: 11   },
+  { id: 'lantern',       x:  5,   z: 13   },
+  { id: 'lantern',       x:  0,   z: 17   },
+  // Amphora (4) — north shore (unlock after bridge)
+  { id: 'amphora',       x: -9,   z: -8   },
+  { id: 'amphora',       x: -5,   z: -12  },
+  { id: 'amphora',       x: -8,   z: -15  },
+  { id: 'amphora',       x: -12,  z: -10  },
+  // Origami Crane (4) — north garden (unlock after bridge)
+  { id: 'origami-crane', x:  5.5, z: -8   },
+  { id: 'origami-crane', x: 10,   z: -11  },
+  { id: 'origami-crane', x:  7,   z: -15  },
+  { id: 'origami-crane', x: 11.5, z: -8   },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDERER & CAMERA
+// ═══════════════════════════════════════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace  = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xD8CCAE);
+scene.fog = new THREE.Fog(0xD8CCAE, 34, 62);
+
+// Orthographic isometric camera
+const FRUSTUM   = 20;
+let   aspect    = window.innerWidth / window.innerHeight;
+const camera    = new THREE.OrthographicCamera(
+  -FRUSTUM * aspect / 2,  FRUSTUM * aspect / 2,
+   FRUSTUM / 2,          -FRUSTUM / 2,
+  -100, 200
+);
+// Isometric offset: camera sits at player + ISO in all 3 axes → 45°/35.26° angle
+const ISO          = new THREE.Vector3(18, 18, 18);
+const PLAYER_SPAWN = new THREE.Vector3(0, 0, 12);
+camera.position.copy(PLAYER_SPAWN).add(ISO);
+camera.lookAt(PLAYER_SPAWN);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LIGHTING
+// ═══════════════════════════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0xFFF5E4, 1.0));
+
+const sun = new THREE.DirectionalLight(0xFFEEC0, 1.5);
+sun.position.set(12, 20, 14);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near   =  0.5;
+sun.shadow.camera.far    = 80;
+sun.shadow.camera.left   = -32; sun.shadow.camera.right =  32;
+sun.shadow.camera.top    =  32; sun.shadow.camera.bottom= -32;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0xC0A878, 0.4);
+fill.position.set(-8, 6, -8);
+scene.add(fill);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RIVER CURVE
+// ═══════════════════════════════════════════════════════════════════════════════
+// Returns the river centre-line Z at a given world X.
+// sin(0)=0 guarantees the centre is exactly z=0 at x=0 (where the bridge sits).
+function riverCenterZ(x) {
+  return Math.sin(x * 0.13) * 1.6 + Math.sin(x * 0.31) * 0.4;
+}
+const RIVER_HALF_W = 2.5; // fixed half-width either side of the curve
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TERRAIN
+// ═══════════════════════════════════════════════════════════════════════════════
+// Main ground (slight height noise away from river)
+const terrainGeo = new THREE.PlaneGeometry(72, 72, 40, 40);
+const tPos = terrainGeo.attributes.position;
+for (let i = 0; i < tPos.count; i++) {
+  const tx = tPos.getX(i), tz = tPos.getY(i); // Y = Z in PlaneGeometry (unrotated)
+  const dRiver = Math.abs(tz);
+  const noise  = dRiver > 3.5
+    ? Math.sin(tx * 0.65 + tz * 0.48) * 0.07 + (Math.random() - 0.5) * 0.05
+    : 0;
+  tPos.setZ(i, noise);
+}
+terrainGeo.computeVertexNormals();
+const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshLambertMaterial({ color: 0x5C7550 }));
+terrain.rotation.x = -Math.PI / 2;
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+// North side tint overlay (slightly cooler/darker — signals locked territory)
+const northOverlay = new THREE.Mesh(
+  new THREE.PlaneGeometry(72, 32),
+  new THREE.MeshLambertMaterial({ color: 0x4A6038, transparent: true, opacity: 0.45 })
+);
+northOverlay.rotation.x = -Math.PI / 2;
+northOverlay.position.set(0, 0.005, -18);
+scene.add(northOverlay);
+
+// River — curved ribbon following riverCenterZ()
+(function buildRiver() {
+  const S = 80, X0 = -36, X1 = 36;
+
+  function makeRibbon(innerFn, outerFn, matOpts) {
+    const verts = new Float32Array((S + 1) * 6);
+    const idx   = [];
+    for (let i = 0; i <= S; i++) {
+      const x = X0 + (X1 - X0) * (i / S);
+      const bi = i * 6;
+      const iz = innerFn(x), oz = outerFn(x);
+      verts[bi]   = x; verts[bi+1] = 0; verts[bi+2] = iz;
+      verts[bi+3] = x; verts[bi+4] = 0; verts[bi+5] = oz;
+      if (i < S) {
+        const a = i*2, b = a+1, c = a+2, d = a+3;
+        idx.push(a, c, b, b, c, d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return new THREE.Mesh(geo, new THREE.MeshLambertMaterial(matOpts));
+  }
+
+  // Main water body
+  const river = makeRibbon(
+    x => riverCenterZ(x) + RIVER_HALF_W,
+    x => riverCenterZ(x) - RIVER_HALF_W,
+    { color: 0x4090B8, transparent: true, opacity: 0.88 }
+  );
+  river.position.y = 0.025;
+  scene.add(river);
+
+  // Foam edges — south bank (+side) and north bank (−side)
+  for (const side of [1, -1]) {
+    const foam = makeRibbon(
+      x => riverCenterZ(x) + side * (RIVER_HALF_W - 0.02),
+      x => riverCenterZ(x) + side * (RIVER_HALF_W + 0.30),
+      { color: 0xC8E8F0, transparent: true, opacity: 0.55 }
+    );
+    foam.position.y = 0.04;
+    scene.add(foam);
+  }
+})();
+
+// Path (main N-S axis)
+const pathMat = new THREE.MeshLambertMaterial({ color: 0xA09070 });
+for (const [cz, len] of [[7, 18], [-7, 14]]) {
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(1.8, len), pathMat);
+  p.rotation.x = -Math.PI / 2;
+  p.position.set(0, 0.012, cz);
+  scene.add(p);
+}
+
+// Bridge path strip over river (hidden until bridge restored)
+const bridgePath = new THREE.Mesh(
+  new THREE.PlaneGeometry(1.5, 5.5),
+  new THREE.MeshLambertMaterial({ color: 0x9E8B6E })
+);
+bridgePath.rotation.x = -Math.PI / 2;
+bridgePath.position.set(0, 0.03, 0);
+bridgePath.visible = false;
+scene.add(bridgePath);
+
+// Invisible hit-plane for tap-to-move raycasting
+const hitPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+);
+hitPlane.rotation.x = -Math.PI / 2;
+hitPlane.position.y = 0;
+scene.add(hitPlane);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DECORATIVE WORLD OBJECTS
+// ═══════════════════════════════════════════════════════════════════════════════
+function addTree(x, z, s = 1) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11 * s, 0.18 * s, 0.95 * s, 5),
+    new THREE.MeshLambertMaterial({ color: 0x4A2E10 })
+  );
+  trunk.position.y = 0.47 * s;
+  trunk.castShadow = true;
+  g.add(trunk);
+  const foliageColor = 0x2A5218 + Math.floor(Math.random() * 0x080808);
+  for (let t = 0; t < (s > 0.95 ? 2 : 1); t++) {
+    const fol = new THREE.Mesh(
+      new THREE.ConeGeometry((0.68 - t * 0.18) * s, (1.5 - t * 0.4) * s, 6),
+      new THREE.MeshLambertMaterial({ color: foliageColor - t * 0x040800 })
+    );
+    fol.position.y = (1.65 + t * 0.75) * s;
+    fol.castShadow = true;
+    g.add(fol);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+}
+
+function addHut(x, z, rot = 0) {
+  const g = new THREE.Group();
+  const walls = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 1.1, 1.6),
+    new THREE.MeshLambertMaterial({ color: 0x8B7040 })
+  );
+  walls.position.y = 0.55;
+  walls.castShadow = true;
+  g.add(walls);
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(1.28, 0.88, 4),
+    new THREE.MeshLambertMaterial({ color: 0x4A2E10 })
+  );
+  roof.position.y = 1.54;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  g.add(roof);
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.66, 0.05),
+    new THREE.MeshLambertMaterial({ color: 0x241408 })
+  );
+  door.position.set(0, 0.33, 0.81);
+  g.add(door);
+  g.position.set(x, 0, z);
+  g.rotation.y = rot;
+  scene.add(g);
+}
+
+function addRock(x, z, s = 1) {
+  const geo = new THREE.IcosahedronGeometry(0.28 * s, 0);
+  geo.scale(1 + Math.random() * 0.55, 0.5 + Math.random() * 0.5, 1 + Math.random() * 0.55);
+  const rock = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x808078 }));
+  rock.position.set(x, 0.12 * s, z);
+  rock.rotation.y = Math.random() * Math.PI * 2;
+  rock.castShadow = true;
+  scene.add(rock);
+}
+
+function addBamboo(x, z) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x5E9030 });
+  for (let i = 0; i < 3; i++) {
+    const stalk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.055, 1.8 + Math.random() * 0.6, 5),
+      mat
+    );
+    stalk.position.set((Math.random() - 0.5) * 0.3, 0.9 + Math.random() * 0.3, (Math.random() - 0.5) * 0.3);
+    g.add(stalk);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+}
+
+// South side decorations
+addTree(-5, 5); addTree(-7.5, 7, 1.15); addTree(-4.5, 10.5);
+addTree(-14, 7, 0.9); addTree(-15.5, 13, 1.05);
+addTree(5.5, 5); addTree(7, 7.5, 0.85); addTree(12.5, 6); addTree(14, 9.5, 1.1);
+addTree(-6.5, 18); addTree(-2, 20); addTree(4.5, 19); addTree(8.5, 18, 1.05);
+addTree(-11, 16.5); addTree(11.5, 17);
+addHut(-5.5, 17, 0.3); addHut(-12.5, 13.5, -0.5); addHut(10.5, 16.5, 0.8); addHut(14.5, 14, 1.2);
+addRock(-2.5, 7); addRock(2, 11); addRock(5.5, 14.5); addRock(-8.5, 5);
+addRock(10.5, 5); addRock(-15.5, 9.5); addRock(13.5, 14); addRock(-4, 15.5);
+addRock(6, 20); addRock(-10, 19);
+addBamboo(-3, 5); addBamboo(3, 5); addBamboo(-9, 12);
+
+// North side decorations
+addTree(-4, -4); addTree(-8.5, -6, 1.1); addTree(-13, -8, 0.95);
+addTree(4.5, -4); addTree(8, -6, 0.9); addTree(13.5, -8);
+addTree(-5.5, -16); addTree(0.5, -18); addTree(6.5, -16, 1.15);
+addTree(-14, -12); addTree(14.5, -11);
+addTree(-9, -15); addTree(9.5, -13);
+addHut(-3.5, -7, 1.0); addHut(10.5, -7, -0.8); addHut(-13, -16, 0.3);
+addRock(-2.5, -4); addRock(3.5, -6); addRock(-9.5, -5.5);
+addRock(10.5, -14.5); addRock(-13.5, -15); addRock(5, -19);
+addRock(-6, -18); addRock(12, -17);
+addBamboo(3, -4); addBamboo(-3, -4); addBamboo(9, -8);
+
+// Decorative path-marker lanterns (small, south side)
+for (const [lx, lz] of [[0.9, 4], [-0.9, 4], [0.9, -3], [-0.9, -3]]) {
+  const g = new THREE.Group();
+  const sm = new THREE.MeshLambertMaterial({ color: 0x8A8870 });
+  [
+    [new THREE.CylinderGeometry(0.13, 0.15, 0.09, 6), 0.045],
+    [new THREE.CylinderGeometry(0.042, 0.052, 0.44, 6), 0.26],
+    [new THREE.ConeGeometry(0.15, 0.13, 6), 0.545],
+  ].forEach(([geo, y]) => {
+    const m = new THREE.Mesh(geo, sm);
+    m.position.y = y;
+    g.add(m);
+  });
+  g.position.set(lx, 0, lz);
+  scene.add(g);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLAYER
+// ═══════════════════════════════════════════════════════════════════════════════
+const playerGroup = new THREE.Group();
+
+const playerBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.16, 0.27, 0.86, 6),
+  new THREE.MeshLambertMaterial({ color: 0xD4AF37, emissive: 0x4C3800, emissiveIntensity: 0.35 })
+);
+playerBody.position.y = 0.43;
+playerBody.castShadow = true;
+playerGroup.add(playerBody);
+
+const playerHead = new THREE.Mesh(
+  new THREE.SphereGeometry(0.23, 6, 5),
+  new THREE.MeshLambertMaterial({ color: 0xFFD056, emissive: 0x6C4800, emissiveIntensity: 0.4 })
+);
+playerHead.position.y = 1.02;
+playerGroup.add(playerHead);
+
+// Glow ring on ground
+const glowRingMat = new THREE.MeshBasicMaterial({ color: 0xD4AF37, transparent: true, opacity: 0.28 });
+const glowRing = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.04, 4, 14), glowRingMat);
+glowRing.rotation.x = -Math.PI / 2;
+glowRing.position.y = 0.02;
+playerGroup.add(glowRing);
+
+playerGroup.position.copy(PLAYER_SPAWN);
+scene.add(playerGroup);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORLD OBJECTS — BROKEN + RESTORED MESHES
+// ═══════════════════════════════════════════════════════════════════════════════
+const worldObjects   = [];
+const brokenHitboxes = [];
+
+// ─── Broken state (EdgesGeometry wireframe shards) ─────────────────────────────
+function buildBrokenMesh(def) {
+  const g   = new THREE.Group();
+  const col = new THREE.Color(def.color).multiplyScalar(0.48);
+  const lm  = () => new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.68 });
+
+  const mkEdges = (geo, py = 0, rx = 0, ry = 0) => {
+    const ls = new THREE.LineSegments(new THREE.EdgesGeometry(geo), lm());
+    ls.position.y = py;
+    ls.rotation.set(rx, ry, 0);
+    geo.dispose();
+    return ls;
+  };
+  const mkShards = (n, spread = 1.2, maxH = 0.6) => {
+    for (let i = 0; i < n; i++) {
+      const s = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.TetrahedronGeometry(0.12 + Math.random() * 0.16, 0)),
+        lm()
+      );
+      s.position.set(
+        (Math.random() - 0.5) * spread,
+        0.12 + Math.random() * maxH,
+        (Math.random() - 0.5) * spread
+      );
+      s.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      g.add(s);
+    }
+  };
+
+  switch (def.id) {
+    case 'bridge':
+      g.add(mkEdges(new THREE.BoxGeometry(4.6, 0.42, 1.85), 0.21));
+      mkShards(4, 2.8, 0.7);
+      break;
+    case 'kintsugi':
+      g.add(mkEdges(new THREE.CylinderGeometry(0.63, 0.33, 1.42, 8), 0.71));
+      mkShards(3, 1.0, 0.55);
+      break;
+    case 'origami-bird':
+      g.add(mkEdges(new THREE.ConeGeometry(0.52, 1.1, 4), 0.55, 0, Math.PI / 4));
+      mkShards(3, 1.0, 0.6);
+      break;
+    case 'lantern':
+      g.add(mkEdges(new THREE.CylinderGeometry(0.4, 0.5, 1.75, 6), 0.875));
+      mkShards(3, 0.8, 0.85);
+      break;
+    case 'amphora':
+      g.add(mkEdges(new THREE.CylinderGeometry(0.5, 0.24, 1.8, 8), 0.9));
+      mkShards(3, 0.9, 0.7);
+      break;
+    case 'origami-crane':
+      g.add(mkEdges(new THREE.BoxGeometry(1.05, 0.68, 0.68), 0.34));
+      mkShards(3, 1.0, 0.55);
+      break;
+  }
+  return g;
+}
+
+// ─── Restored state (full geometry, bright material) ──────────────────────────
+// GLB-based objects get an empty group here; loadGLBModels() fills them async.
+const GLB_IDS = new Set(['bridge', 'origami-bird', 'origami-crane']);
+
+function buildRestoredMesh(def) {
+  if (GLB_IDS.has(def.id)) {
+    const g = new THREE.Group(); g.visible = false; return g;
+  }
+  const g   = new THREE.Group();
+  const lam = (c, emI = 0) => {
+    const m = new THREE.MeshLambertMaterial({ color: c });
+    if (emI) { m.emissive = new THREE.Color(c).multiplyScalar(emI); }
+    return m;
+  };
+  const goldSeam = (r, y) => {
+    const s = new THREE.Mesh(
+      new THREE.TorusGeometry(r, 0.018, 4, 20),
+      new THREE.MeshLambertMaterial({ color: 0xD4AF37, emissive: 0x7C5010, emissiveIntensity: 0.6 })
+    );
+    s.rotation.x = Math.PI / 2;
+    s.position.y = y;
+    return s;
+  };
+
+  switch (def.id) {
+    case 'bridge': {
+      const decMat = lam(0xA09070);
+      const deck   = new THREE.Mesh(new THREE.BoxGeometry(5.3, 0.32, 2.05), decMat);
+      deck.position.y = 0.16;
+      deck.castShadow = true; deck.receiveShadow = true;
+      g.add(deck);
+      // Planks
+      for (let i = -2; i <= 2; i++) {
+        const pl = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 2.05), lam(0x887858));
+        pl.position.set(i * 1.0, 0.32, 0);
+        g.add(pl);
+      }
+      // Pillars + caps
+      for (const px of [-2.2, 2.2]) {
+        for (const pz of [-0.88, 0.88]) {
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.1, 0.28), lam(0x7A6848));
+          pillar.position.set(px, 0.55, pz);
+          pillar.castShadow = true;
+          g.add(pillar);
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.12, 0.38), lam(0x6A5838));
+          cap.position.set(px, 1.16, pz);
+          g.add(cap);
+        }
+      }
+      // Kintsugi gold cracks
+      for (let i = -1; i <= 1; i++) {
+        const crack = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 2.05),
+          new THREE.MeshBasicMaterial({ color: 0xD4AF37 }));
+        crack.position.set(i * 1.0, 0.33, 0);
+        g.add(crack);
+      }
+      break;
+    }
+    case 'kintsugi': {
+      const pts = [
+        new THREE.Vector2(0.03, 0.00), new THREE.Vector2(0.40, 0.03),
+        new THREE.Vector2(0.60, 0.25), new THREE.Vector2(0.67, 0.50),
+        new THREE.Vector2(0.55, 0.90), new THREE.Vector2(0.43, 1.00),
+        new THREE.Vector2(0.55, 1.10), new THREE.Vector2(0.58, 1.15),
+      ];
+      const mesh = new THREE.Mesh(
+        new THREE.LatheGeometry(pts, 8),
+        new THREE.MeshLambertMaterial({ color: def.color, flatShading: true })
+      );
+      mesh.castShadow = true;
+      g.add(mesh);
+      g.add(goldSeam(0.67, 0.50));
+      g.add(goldSeam(0.56, 0.90));
+      g.add(goldSeam(0.56, 1.10));
+      break;
+    }
+    case 'origami-bird': {
+      const bm  = lam(def.color);
+      const body = new THREE.Mesh(new THREE.ConeGeometry(0.44, 0.88, 4), bm);
+      body.position.y = 0.44; body.rotation.y = Math.PI / 4; body.castShadow = true;
+      g.add(body);
+      for (const side of [-1, 1]) {
+        const wing = new THREE.Mesh(
+          new THREE.BoxGeometry(0.72, 0.06, 0.44),
+          new THREE.MeshLambertMaterial({ color: new THREE.Color(def.color).multiplyScalar(0.82), flatShading: true })
+        );
+        wing.position.set(side * 0.56, 0.46, 0);
+        wing.rotation.z = side * 0.28;
+        g.add(wing);
+      }
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.38, 3), lam(def.color));
+      tail.position.set(0, 0.48, 0.46); tail.rotation.x = -0.42;
+      g.add(tail);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 5, 4), lam(def.color));
+      head.position.set(0, 0.77, -0.36);
+      g.add(head);
+      break;
+    }
+    case 'lantern': {
+      const sm = new THREE.MeshLambertMaterial({ color: def.color, flatShading: true });
+      const parts = [
+        [new THREE.CylinderGeometry(0.52, 0.58, 0.22, 6), 0.11],
+        [new THREE.CylinderGeometry(0.19, 0.24, 0.84, 6), 0.64],
+        [new THREE.CylinderGeometry(0.44, 0.20, 0.18, 6), 1.14],
+        [new THREE.ConeGeometry(0.55, 0.40, 6),            1.53],
+        [new THREE.CylinderGeometry(0.12, 0.16, 0.14, 6), 1.78],
+      ];
+      parts.forEach(([geo, y]) => {
+        const m = new THREE.Mesh(geo, sm);
+        m.position.y = y; m.castShadow = true;
+        g.add(m);
+      });
+      // Flame
+      const flame = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 6, 5),
+        new THREE.MeshLambertMaterial({ color: 0xFF9900, emissive: 0xFF4400, emissiveIntensity: 1.2 })
+      );
+      flame.position.y = 1.96;
+      g.add(flame);
+      g.add(goldSeam(0.36, 0.22));
+      g.add(goldSeam(0.32, 1.06));
+      break;
+    }
+    case 'amphora': {
+      const pts = [
+        new THREE.Vector2(0.02, 0.00), new THREE.Vector2(0.25, 0.03),
+        new THREE.Vector2(0.35, 0.20), new THREE.Vector2(0.50, 0.42),
+        new THREE.Vector2(0.60, 0.70), new THREE.Vector2(0.57, 0.90),
+        new THREE.Vector2(0.42, 1.08), new THREE.Vector2(0.28, 1.20),
+        new THREE.Vector2(0.20, 1.30), new THREE.Vector2(0.20, 1.38),
+        new THREE.Vector2(0.26, 1.43), new THREE.Vector2(0.29, 1.50),
+      ];
+      const mesh = new THREE.Mesh(
+        new THREE.LatheGeometry(pts, 8),
+        new THREE.MeshLambertMaterial({ color: def.color, flatShading: true })
+      );
+      mesh.castShadow = true;
+      g.add(mesh);
+      for (const side of [-1, 1]) {
+        const handle = new THREE.Mesh(
+          new THREE.TorusGeometry(0.14, 0.03, 5, 10, Math.PI),
+          new THREE.MeshLambertMaterial({ color: new THREE.Color(def.color).multiplyScalar(0.78) })
+        );
+        handle.position.set(side * 0.62, 0.90, 0);
+        handle.rotation.z = side * Math.PI / 2;
+        g.add(handle);
+      }
+      g.add(goldSeam(0.50, 0.42));
+      g.add(goldSeam(0.57, 0.90));
+      break;
+    }
+    case 'origami-crane': {
+      const cm = new THREE.MeshLambertMaterial({ color: def.color, flatShading: true });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.42, 0.66), cm);
+      body.position.y = 0.21; body.castShadow = true;
+      g.add(body);
+      for (const side of [-1, 1]) {
+        const wing = new THREE.Mesh(
+          new THREE.BoxGeometry(0.92, 0.07, 0.56),
+          new THREE.MeshLambertMaterial({ color: new THREE.Color(def.color).multiplyScalar(0.88), flatShading: true })
+        );
+        wing.position.set(side * 0.90, 0.38, 0);
+        wing.rotation.z = side * -0.32;
+        g.add(wing);
+      }
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.072, 0.4, 4), cm);
+      neck.position.set(0.40, 0.54, 0); neck.rotation.z = -0.38;
+      g.add(neck);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 4, 4), cm);
+      head.position.set(0.58, 0.70, 0);
+      g.add(head);
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.14, 3), cm);
+      beak.position.set(0.70, 0.70, 0); beak.rotation.z = -Math.PI / 2;
+      g.add(beak);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.40, 3), cm);
+      tail.position.set(-0.48, 0.28, 0); tail.rotation.z = 1.15;
+      g.add(tail);
+      for (const lx of [-0.15, 0.15]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.22, 4),
+          new THREE.MeshLambertMaterial({ color: 0xC8A070 }));
+        leg.position.set(lx, 0.11, 0);
+        g.add(leg);
+      }
+      break;
+    }
+  }
+  g.visible = false;
+  return g;
+}
+
+// Instantiate all puzzle world objects
+for (const def of PUZZLE_DEFS) {
+  const brokenGroup   = buildBrokenMesh(def);
+  const restoredGroup = buildRestoredMesh(def);
+  brokenGroup.position.copy(def.pos);
+  restoredGroup.position.copy(def.pos);
+  scene.add(brokenGroup);
+  scene.add(restoredGroup);
+
+  const hbW = def.id === 'bridge' ? 6   : 2.6;
+  const hbD = def.id === 'bridge' ? 3   : 2.6;
+  const hitbox = new THREE.Mesh(
+    new THREE.BoxGeometry(hbW, 2.2, hbD),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  hitbox.position.copy(def.pos);
+  hitbox.position.y = 1.1;
+  hitbox.userData.puzzleId = def.id;
+  hitbox.userData.active   = true;
+  scene.add(hitbox);
+  brokenHitboxes.push(hitbox);
+
+  worldObjects.push({ def, brokenGroup, restoredGroup, hitbox });
+}
+
+// ─── Async: load real GLB meshes into the restored groups ──────────────────────
+(async function loadGLBModels() {
+  const loader = new GLTFLoader();
+
+  // { id, dataUrl, targetSize, rotY }
+  // targetSize = max dimension the model will be scaled to (world units)
+  // rotY = Y-axis rotation to orient model correctly in the world
+  const specs = [
+    // Bridge spans the river north–south (Z axis). The GLB has its length along X,
+    // so rotate 90° around Y to align with Z.
+    { id: 'bridge',        url: window.BRIDGE_GLB,        size: 5.8, rotY: Math.PI / 2 },
+    { id: 'origami-bird',  url: window.ORIGAMI_BIRD_GLB,  size: 2.2, rotY: 0           },
+    { id: 'origami-crane', url: window.ORIGAMI_CRANE_GLB, size: 2.4, rotY: 0           },
+  ];
+
+  for (const { id, url, size, rotY } of specs) {
+    if (!url) { console.warn(`No GLB data for ${id}`); continue; }
+    const wo = worldObjects.find(o => o.def.id === id);
+    if (!wo) continue;
+
+    await new Promise(resolve => {
+      loader.load(url, gltf => {
+        const obj = gltf.scene;
+
+        // Scale so the largest dimension == size
+        const box1 = new THREE.Box3().setFromObject(obj);
+        const sz   = new THREE.Vector3(); box1.getSize(sz);
+        const sf   = size / Math.max(sz.x, sz.y, sz.z);
+        obj.scale.setScalar(sf);
+
+        // Re-measure after scaling; shift so bottom rests at y = 0, centred in XZ
+        const box2 = new THREE.Box3().setFromObject(obj);
+        const ctr  = new THREE.Vector3(); box2.getCenter(ctr);
+        obj.position.set(-ctr.x, -box2.min.y, -ctr.z);
+        obj.rotation.y = rotY;
+
+        // Enable shadows on every mesh
+        obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+
+        wo.restoredGroup.add(obj);
+        // Find the exact deck height by raycasting straight down at bridge centre.
+        // This works for any bridge model regardless of proportions.
+        if (id === 'bridge') {
+          obj.updateWorldMatrix(true, true);
+          const deckRay = new THREE.Raycaster(
+            new THREE.Vector3(0, 20, 0),
+            new THREE.Vector3(0, -1, 0)
+          );
+          const hits = deckRay.intersectObject(obj, true);
+          bridgeDeckY = hits.length > 0 ? hits[0].point.y : sz.y * sf * 0.85;
+        }
+        resolve();
+      }, undefined, err => { console.warn(`GLB load error (${id}):`, err); resolve(); });
+    });
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PIECE ORBS
+// ═══════════════════════════════════════════════════════════════════════════════
+const PIECE_COLORS = {
+  bridge:          0xA09070,
+  kintsugi:        0xC87941,
+  'origami-bird':  0x8ABFC8,
+  lantern:         0x7A8EA8,
+  amphora:         0xC47B3E,
+  'origami-crane': 0xD4C8A0,
+};
+
+const pieceOrbs = [];
+for (const sp of PIECE_SPAWNS) {
+  const c   = PIECE_COLORS[sp.id];
+  const geo = new THREE.OctahedronGeometry(0.22, 0);
+  const mat = new THREE.MeshLambertMaterial({
+    color: c,
+    emissive: new THREE.Color(c),
+    emissiveIntensity: 0.58,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(sp.x, 0.5, sp.z);
+  scene.add(mesh);
+  pieceOrbs.push({ id: sp.id, mesh, baseY: 0.5, collected: false });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HUD — BUILD INVENTORY STRIP
+// ═══════════════════════════════════════════════════════════════════════════════
+const inventoryEl = document.getElementById('inventory');
+const promptEl    = document.getElementById('prompt');
+
+const SHORT_NAME = {
+  bridge: 'BRIDGE', kintsugi: 'POT', 'origami-bird': 'BIRD',
+  lantern: 'LANTERN', amphora: 'AMPHORA', 'origami-crane': 'CRANE',
+};
+
+(function buildInventory() {
+  for (const def of PUZZLE_DEFS) {
+    const item = document.createElement('div');
+    item.className = 'inv-item';
+    item.id = `inv-${def.id}`;
+
+    const dot = document.createElement('div');
+    dot.className = 'inv-dot';
+    dot.id = `inv-dot-${def.id}`;
+    dot.style.background = '#' + new THREE.Color(PIECE_COLORS[def.id]).getHexString();
+
+    const cnt = document.createElement('span');
+    cnt.className = 'inv-count';
+    cnt.id = `inv-cnt-${def.id}`;
+    cnt.textContent = `0/${worldState.required[def.id]}`;
+    dot.appendChild(cnt);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'inv-label';
+    lbl.textContent = SHORT_NAME[def.id];
+
+    item.appendChild(dot);
+    item.appendChild(lbl);
+    inventoryEl.appendChild(item);
+  }
+})();
+
+function updateInv(id) {
+  const item = document.getElementById(`inv-${id}`);
+  const cnt  = document.getElementById(`inv-cnt-${id}`);
+  const dot  = document.getElementById(`inv-dot-${id}`);
+  if (!item) return;
+  const p = worldState.pieces[id], r = worldState.required[id];
+  cnt.textContent = `${p}/${r}`;
+  if (worldState.restored[id]) {
+    item.className = 'inv-item restored';
+    dot.style.boxShadow   = '0 0 10px rgba(212,175,55,0.7)';
+    dot.style.borderColor = '#d4af37';
+  } else if (p > 0) {
+    item.className = 'inv-item has-pieces';
+    if (p >= r) {
+      dot.style.boxShadow   = '0 0 8px rgba(212,175,55,0.55)';
+      dot.style.borderColor = 'rgba(212,175,55,0.7)';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROMPT SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+let promptTimer = null;
+let promptLast  = '';
+
+function showPrompt(text, duration = 0) {
+  promptEl.textContent = text;
+  promptEl.classList.add('visible');
+  if (promptTimer) { clearTimeout(promptTimer); promptTimer = null; }
+  if (duration > 0) {
+    promptTimer = setTimeout(() => {
+      promptEl.classList.remove('visible');
+      promptLast  = '';
+      promptTimer = null;
+    }, duration);
+  } else {
+    promptLast = text;
+  }
+}
+
+function clearPrompt() {
+  if (promptTimer) return;
+  promptEl.classList.remove('visible');
+  promptLast = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLAYER MOVEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+const playerPos    = PLAYER_SPAWN.clone();
+const playerTarget = PLAYER_SPAWN.clone();
+const PLAYER_SPEED   = 5.5;
+const BRIDGE_HALF_W  =  1.3;  // half-width of bridge lane (|x| must be within this to cross)
+const COLLECT_DIST   = 1.5;
+let   bridgeDeckY    =  0.55; // deck surface height; refined from GLB bounding box after load
+let   playerY        =  0;    // visual elevation (separate from XZ movement so dist checks are unaffected)
+const INTERACT_DIST  = 2.8;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUT — TAP TO MOVE / INTERACT
+// ═══════════════════════════════════════════════════════════════════════════════
+const raycaster = new THREE.Raycaster();
+const pointer   = new THREE.Vector2();
+
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (document.getElementById('puzzle-overlay').classList.contains('active')) return;
+
+  pointer.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+
+  // 1. Check broken-object hitboxes
+  const activeHB = brokenHitboxes.filter(h => h.userData.active && !worldState.restored[h.userData.puzzleId]);
+  const hbHits   = raycaster.intersectObjects(activeHB);
+  if (hbHits.length > 0) {
+    const pid  = hbHits[0].object.userData.puzzleId;
+    const dist = playerPos.distanceTo(hbHits[0].object.position);
+    if (dist < INTERACT_DIST) {
+      tryInteract(pid);
+      return; // handled — don't move
+    }
+    // Too far — fall through to terrain movement toward the object
+  }
+
+  // 2. Move to terrain
+  const th = raycaster.intersectObject(hitPlane);
+  if (th.length > 0) {
+    const t = th[0].point.clone();
+    t.y = 0;
+    // Curve-aware river restriction (per-frame collision enforces it continuously).
+    {
+      const tSouth = riverCenterZ(t.x) + RIVER_HALF_W;
+      const tNorth = riverCenterZ(t.x) - RIVER_HALF_W;
+      if (t.z < tSouth && t.z > tNorth) {
+        // Target lands inside the river band — only the bridge lane is passable
+        if (!worldState.bridgeBuilt || Math.abs(t.x) > BRIDGE_HALF_W) {
+          const pCenter = riverCenterZ(playerPos.x);
+          t.z = playerPos.z >= pCenter ? tSouth : tNorth;
+        }
+      } else if (t.z <= tNorth && !worldState.bridgeBuilt) {
+        // No bridge — north side is off-limits
+        t.z = riverCenterZ(t.x) + RIVER_HALF_W;
+      }
+    }
+    playerTarget.copy(t);
+  }
+});
+
+function getPuzzleName(id) { return PUZZLE_DEFS.find(d => d.id === id)?.name ?? id; }
+
+function tryInteract(pid) {
+  if (worldState.restored[pid]) return;
+  const p = worldState.pieces[pid], r = worldState.required[pid];
+  if (p >= r) {
+    launchPuzzle(pid);
+  } else {
+    showPrompt(`✦ Need ${r - p} more piece${r - p !== 1 ? 's' : ''} for ${getPuzzleName(pid)}`, 2500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUZZLE OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════════
+const puzzleOverlay = document.getElementById('puzzle-overlay');
+const puzzleIframe  = document.getElementById('puzzle-iframe');
+let   activePuzzleId = null;
+
+function launchPuzzle(pid) {
+  activePuzzleId = pid;
+  puzzleOverlay.classList.add('active');
+  puzzleIframe.src = `index.html?puzzle=${pid}&autostart=1&fromWorld=1`;
+  window.addEventListener('message', onPuzzleMsg);
+}
+
+function onPuzzleMsg(e) {
+  if (e.data?.type === 'puzzleComplete' && e.data.puzzleId === activePuzzleId) {
+    const pid = activePuzzleId;   // capture before closePuzzleOverlay() nulls it
+    closePuzzleOverlay();
+    onRestored(pid);
+  } else if (e.data?.type === 'puzzleExit') {
+    closePuzzleOverlay();
+  }
+}
+
+function closePuzzleOverlay() {
+  window.removeEventListener('message', onPuzzleMsg);
+  puzzleOverlay.classList.remove('active');
+  setTimeout(() => { puzzleIframe.src = ''; }, 300);
+  activePuzzleId = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUZZLE RESTORATION
+// ═══════════════════════════════════════════════════════════════════════════════
+function onRestored(pid) {
+  worldState.restored[pid] = true;
+
+  const wo = worldObjects.find(o => o.def.id === pid);
+  if (wo) {
+    wo.brokenGroup.visible    = false;
+    wo.restoredGroup.visible  = true;
+    wo.hitbox.userData.active = false;
+    spawnGoldParticles(wo.def.pos.clone().setY(0.5));
+  }
+
+  if (pid === 'bridge') {
+    worldState.bridgeBuilt = true;
+    bridgePath.visible = true;
+    showPrompt('✦ Bridge restored! The north passage is open.', 3200);
+  } else {
+    showPrompt(`✦ ${getPuzzleName(pid)} restored!`, 2000);
+  }
+
+  updateInv(pid);
+
+  if (Object.values(worldState.restored).every(Boolean)) {
+    setTimeout(showWin, 2000);
+  }
+}
+
+function spawnGoldParticles(origin) {
+  const N   = 44;
+  const arr = new Float32Array(N * 3);
+  const vel = [];
+  for (let i = 0; i < N; i++) {
+    arr[i*3] = origin.x; arr[i*3+1] = origin.y; arr[i*3+2] = origin.z;
+    const θ = Math.random() * Math.PI * 2, φ = Math.random() * Math.PI;
+    const s = 0.032 + Math.random() * 0.07;
+    vel.push(new THREE.Vector3(
+      Math.sin(φ) * Math.cos(θ) * s,
+      Math.abs(Math.cos(φ)) * s + 0.022,
+      Math.sin(φ) * Math.sin(θ) * s
+    ));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0xD4AF37, size: 0.22,
+    transparent: true, opacity: 1, sizeAttenuation: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  let age = 0;
+  (function tick() {
+    age += 0.018;
+    mat.opacity = Math.max(0, 1 - age / 1.5);
+    for (let i = 0; i < N; i++) {
+      arr[i*3]   += vel[i].x;
+      arr[i*3+1] += vel[i].y;
+      arr[i*3+2] += vel[i].z;
+      vel[i].y   -= 0.0015;
+    }
+    geo.attributes.position.needsUpdate = true;
+    if (age < 1.5) requestAnimationFrame(tick);
+    else { scene.remove(pts); geo.dispose(); mat.dispose(); }
+  })();
+}
+
+function showWin() {
+  document.getElementById('win-screen').classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROXIMITY PROMPT (runs every frame)
+// ═══════════════════════════════════════════════════════════════════════════════
+function tickPrompt() {
+  if (promptTimer) return; // timed prompt is showing — don't override
+
+  let text = '', bestDist = Infinity;
+
+  // Near a piece orb (but not yet auto-collected)
+  for (const orb of pieceOrbs) {
+    if (orb.collected) continue;
+    const d = playerPos.distanceTo(orb.mesh.position);
+    if (d < 2.8 && d > COLLECT_DIST && d < bestDist) {
+      bestDist = d;
+      text = '✦ Walk closer to collect';
+    }
+  }
+
+  // Near a broken object
+  for (const wo of worldObjects) {
+    if (worldState.restored[wo.def.id]) continue;
+    const d = playerPos.distanceTo(wo.def.pos);
+    if (d < INTERACT_DIST && d < bestDist) {
+      bestDist = d;
+      const p = worldState.pieces[wo.def.id], r = worldState.required[wo.def.id];
+      text = p >= r
+        ? `✦ Tap to restore ${wo.def.name}`
+        : `✦ Need ${r - p} more piece${r - p !== 1 ? 's' : ''}`;
+    }
+  }
+
+  // River gate hint
+  const _pRiverS = riverCenterZ(playerPos.x) + RIVER_HALF_W;
+  if (!worldState.bridgeBuilt && Math.abs(playerPos.x) < 4 && playerPos.z < _pRiverS + 3 && playerPos.z > _pRiverS - 1) {
+    if (bestDist === Infinity) {
+      const bp = worldState.pieces.bridge, br = worldState.required.bridge;
+      text = bp >= br
+        ? '✦ Restore the bridge to cross north'
+        : `✦ Collect ${br - bp} more bridge piece${br - bp !== 1 ? 's' : ''}`;
+    }
+  }
+
+  if (text !== promptLast) {
+    if (text) showPrompt(text);
+    else      clearPrompt();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDER LOOP
+// ═══════════════════════════════════════════════════════════════════════════════
+const clock      = new THREE.Clock();
+const camTarget  = PLAYER_SPAWN.clone().add(ISO);
+const _moveVec   = new THREE.Vector3();
+
+(function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t  = clock.elapsedTime;
+
+  // ── Player movement ─────────────────────────────────────────────────────────
+  _moveVec.subVectors(playerTarget, playerPos);
+  const dist = _moveVec.length();
+  if (dist > 0.05) {
+    const step = Math.min(PLAYER_SPEED * dt, dist);
+    playerPos.addScaledVector(_moveVec.normalize(), step);
+
+    // ── River collision — curve-aware, per-frame ───────────────────────────────
+    {
+      const pSouth = riverCenterZ(playerPos.x) + RIVER_HALF_W;
+      const pNorth = riverCenterZ(playerPos.x) - RIVER_HALF_W;
+      const inRiverBand  = playerPos.z < pSouth && playerPos.z > pNorth;
+      const onBridgeLane = worldState.bridgeBuilt && Math.abs(playerPos.x) <= BRIDGE_HALF_W;
+      if (inRiverBand && !onBridgeLane) {
+        const toSouth = pSouth - playerPos.z;
+        const toNorth = playerPos.z - pNorth;
+        playerPos.z    = toSouth <= toNorth ? pSouth : pNorth;
+        playerTarget.z = playerPos.z;
+      }
+      // Safety net: no bridge → cannot be north of the river at all
+      if (!worldState.bridgeBuilt && playerPos.z < pSouth) {
+        playerPos.z    = pSouth;
+        playerTarget.z = pSouth;
+      }
+    }
+
+    playerGroup.position.set(playerPos.x, playerY, playerPos.z);
+    // Face direction of travel
+    const angle = Math.atan2(_moveVec.x, _moveVec.z);
+    playerGroup.rotation.y += (angle - playerGroup.rotation.y) * 0.15;
+  }
+
+  // ── Bridge deck elevation ────────────────────────────────────────────────────
+  // Runs every frame (not just when moving) so the player smoothly rises/descends
+  // when standing still on or near the bridge.
+  {
+    const pSouth = riverCenterZ(playerPos.x) + RIVER_HALF_W;
+    const pNorth = riverCenterZ(playerPos.x) - RIVER_HALF_W;
+    const _onBridge = worldState.bridgeBuilt
+      && Math.abs(playerPos.x) <= BRIDGE_HALF_W * 1.4
+      && playerPos.z < pSouth && playerPos.z > pNorth;
+    playerY += ((_onBridge ? bridgeDeckY : 0) - playerY) * 0.14;
+    playerGroup.position.y = playerY;
+  }
+
+  // ── Camera follow (isometric, smooth lerp) ──────────────────────────────────
+  camTarget.set(playerPos.x + ISO.x, ISO.y, playerPos.z + ISO.z);
+  camera.position.lerp(camTarget, 0.065);
+  camera.lookAt(playerPos.x, playerY, playerPos.z);
+
+  // ── Player glow pulse ───────────────────────────────────────────────────────
+  glowRingMat.opacity = 0.20 + Math.sin(t * 2.6) * 0.10;
+
+  // ── Piece orb animation + auto-collect ─────────────────────────────────────
+  for (const orb of pieceOrbs) {
+    if (orb.collected) continue;
+    orb.mesh.position.y = orb.baseY + Math.sin(t * 2.1 + orb.mesh.position.x * 0.7) * 0.1;
+    orb.mesh.rotation.y += dt * 1.5;
+    orb.mesh.rotation.x  = Math.sin(t * 0.9 + orb.mesh.position.z * 0.5) * 0.4;
+    if (playerPos.distanceTo(orb.mesh.position) < COLLECT_DIST) collectPiece(orb);
+  }
+
+  // ── Restored object idle sway ───────────────────────────────────────────────
+  for (const wo of worldObjects) {
+    if (!wo.restoredGroup.visible || wo.def.id === 'bridge') continue;
+    wo.restoredGroup.rotation.y = Math.sin(t * 0.38 + wo.def.pos.x * 0.4) * 0.07;
+  }
+
+  // ── Proximity prompts ───────────────────────────────────────────────────────
+  tickPrompt();
+
+  renderer.render(scene, camera);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COLLECT PIECE
+// ═══════════════════════════════════════════════════════════════════════════════
+function collectPiece(orb) {
+  orb.collected    = true;
+  orb.mesh.visible = false;
+  worldState.pieces[orb.id]++;
+  updateInv(orb.id);
+  const p = worldState.pieces[orb.id], r = worldState.required[orb.id];
+  if (p >= r) {
+    showPrompt(`✦ All ${r} pieces for ${getPuzzleName(orb.id)} collected!`, 2400);
+  } else {
+    showPrompt(`✦ ${getPuzzleName(orb.id)} piece (${p}/${r})`, 1400);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RESIZE
+// ═══════════════════════════════════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  aspect = window.innerWidth / window.innerHeight;
+  camera.left   = -FRUSTUM * aspect / 2;
+  camera.right  =  FRUSTUM * aspect / 2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

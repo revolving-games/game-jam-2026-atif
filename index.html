@@ -433,6 +433,7 @@
 
   <script src="models/bridge.js"></script>
   <script src="models/origami-bird.js"></script>
+  <script src="models/origami-crane.js"></script>
 
   <script type="module">
     import * as THREE from 'three';
@@ -516,6 +517,29 @@
       wireframeThreshold: 0,
       keepOriginalTexture: true,
       pieceNames:         ['Left Wing', 'Neck', 'Beak', 'Body', 'Tail', 'Right Wing'],
+    };
+
+    const LANTERN = {
+      id: 'lantern',
+      totalPieces: 3,
+      segments: 6,
+      profilePoints: [
+        [0.0, 0.0], [0.6, 0.0],
+        [0.4, 0.3], [0.3, 1.0],
+        [0.6, 1.1], [0.7, 1.4],
+        [0.5, 1.5], [0.4, 1.8],
+        [0.2, 2.0], [0.0, 2.0],
+      ],
+      pieceDefs: [
+        { id: 0, name: 'Pedestal', sliceStart: 0, sliceEnd: 3,  color: 0x8B9DB5 },
+        { id: 1, name: 'Column',   sliceStart: 3, sliceEnd: 6,  color: 0x7A8EA8 },
+        { id: 2, name: 'Hood',     sliceStart: 6, sliceEnd: 10, color: 0x6B82A0 },
+      ],
+      seams: [
+        { y: 0.30, r: 0.45 },
+        { y: 1.10, r: 0.65 },
+      ],
+      seamsByPiece: { 0: [0], 1: [0, 1], 2: [1] },
     };
 
     // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1140,6 +1164,11 @@
       APP_STATE = 'complete';
       stopTimer();
 
+      // Notify parent world if launched inside iframe
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'puzzleComplete', puzzleId: activePuzzleConfig.id }, '*');
+      }
+
       // Group all placed pieces + seam rings so the whole assembly spins as one unit
       completionGroup = new THREE.Group();
       scene.add(completionGroup);
@@ -1295,6 +1324,10 @@
     });
 
     document.getElementById('back-btn').addEventListener('click', () => {
+      if (window._fromWorld) {
+        window.parent.postMessage({ type: 'puzzleExit' }, '*');
+        return;
+      }
       if (gameState.placed > 0 && !gameState.complete) {
         if (!confirm('Return to main menu? Your progress will be lost.')) return;
       }
@@ -1313,7 +1346,10 @@
       APP_STATE = 'playing';
     });
 
-    document.getElementById('menu-btn').addEventListener('click', () => backToMenu());
+    document.getElementById('menu-btn').addEventListener('click', () => {
+      if (window._fromWorld) { window.parent.postMessage({ type: 'puzzleExit' }, '*'); return; }
+      backToMenu();
+    });
 
     window.addEventListener('resize', () => {
       renderer.setSize(cW(), cH());
@@ -1503,6 +1539,29 @@
       trayRenderer.render(trayScene, trayCamera);
       renderer.render(scene, camera);
     })();
+    // ── World integration: URL-param autostart ─────────────────────────────────
+    {
+      const _p = new URLSearchParams(window.location.search);
+      window._fromWorld = _p.get('fromWorld') === '1';
+      const _pid        = _p.get('puzzle');
+      const _auto       = _p.get('autostart') === '1';
+
+      if (window._fromWorld) {
+        document.getElementById('back-btn').textContent = '← WORLD';
+        document.getElementById('menu-btn').textContent = 'RETURN TO WORLD';
+      }
+      if (_auto && _pid) {
+        const cfg = {
+          kintsugi:       KINTSUGI,
+          amphora:        AMPHORA,
+          bridge:         BRIDGE,
+          'origami-bird': ORIGAMI_BIRD,
+          'origami-crane':ORIGAMI_CRANE,
+          lantern:        LANTERN,
+        }[_pid];
+        if (cfg) startPuzzle(cfg);
+      }
+    }
   </script>
 </body>
 </html>

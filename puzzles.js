@@ -66,3 +66,26 @@ export const AMPHORA = {
   ],
   seamsByPiece: { 0: [0], 1: [0, 1], 2: [1, 2], 3: [2, 3], 4: [3, 4], 5: [4, 5], 6: [5] },
 };
+
+export const LANTERN = {
+  id: 'lantern',
+  totalPieces: 3,
+  segments: 6,
+  profilePoints: [
+    [0.0, 0.0], [0.6, 0.0],   // base
+    [0.4, 0.3], [0.3, 1.0],   // pillar
+    [0.6, 1.1], [0.7, 1.4],   // cap
+    [0.5, 1.5], [0.4, 1.8],   // hood
+    [0.2, 2.0], [0.0, 2.0],   // flame socket
+  ],
+  pieceDefs: [
+    { id: 0, name: 'Pedestal', sliceStart: 0, sliceEnd: 3,  color: 0x8B9DB5 },
+    { id: 1, name: 'Column',   sliceStart: 3, sliceEnd: 6,  color: 0x7A8EA8 },
+    { id: 2, name: 'Hood',     sliceStart: 6, sliceEnd: 10, color: 0x6B82A0 },
+  ],
+  seams: [
+    { y: 0.30, r: 0.45 },
+    { y: 1.10, r: 0.65 },
+  ],
+  seamsByPiece: { 0: [0], 1: [0, 1], 2: [1] },
+};
