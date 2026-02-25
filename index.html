@@ -412,6 +412,13 @@
           <span class="difficulty hard">7 pieces · Hard</span>
         </div>
       </div>
+      <div class="puzzle-card" data-puzzle="bridgeglt1">
+        <div class="card-preview" id="preview-bridgeglt1"></div>
+        <div class="card-info">
+          <h2>Bridge II</h2>
+          <span class="difficulty medium">5 pieces · Medium</span>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -452,6 +459,7 @@
   <script src="models/origami-bird2.js"></script>
   <script src="models/lantarn.js"></script>
   <script src="models/bridgeglt.js"></script>
+  <script src="models/bridgeglt1.js"></script>
 
   <script type="module">
     import * as THREE from 'three';
@@ -508,6 +516,7 @@
     const ORIGAMI_BIRD2_GLB = window.ORIGAMI_BIRD2_GLB;
     const LANTARN_GLB       = window.LANTARN_GLB;
     const BRIDGEGLT_GLB     = window.BRIDGEGLT_GLB;
+    const BRIDGEGLT1_GLB    = window.BRIDGEGLT1_GLB;
     const ORIGAMI_CRANE_GLB = window.ORIGAMI_CRANE_GLB;
 
     const BRIDGE = {
@@ -572,6 +581,17 @@
       snapDistance:       0.45,
       useMeshParts:       true,
       useFallbackColors:  true,   // DefaultPBR material has no colour; use PIECE_COLORS palette
+      wireframeThreshold: 0,
+    };
+
+    const BRIDGEGLT1 = {
+      id:                'bridgeglt1',
+      type:              'glb',
+      url:               BRIDGEGLT1_GLB,
+      totalPieces:       5,
+      snapDistance:      0.45,
+      useMeshParts:      true,
+      useFallbackColors: true,
       wireframeThreshold: 0,
     };
 
@@ -1467,6 +1487,7 @@
                   : id === 'origami-bird2'  ? ORIGAMI_BIRD2
                   : id === 'lantarn'        ? LANTARN
                   : id === 'bridgeglt'     ? BRIDGEGLT
+                  : id === 'bridgeglt1'    ? BRIDGEGLT1
 
                   : BRIDGE;
         _initAudio();
@@ -1628,6 +1649,7 @@
     createGLBMiniPreview('preview-origami-bird2', ORIGAMI_BIRD2_GLB, true);
     createGLBMiniPreview('preview-lantarn',       LANTARN_GLB,       true);
     createGLBMiniPreview('preview-bridgeglt',     BRIDGEGLT_GLB);
+    createGLBMiniPreview('preview-bridgeglt1',    BRIDGEGLT1_GLB);
 
     // ── Render Loop ────────────────────────────────────────────────────────────────
     const clock = new THREE.Clock();
@@ -1728,6 +1750,7 @@
           lantern:         LANTERN,
           lantarn:         LANTARN,
           bridgeglt:       BRIDGEGLT,
+          bridgeglt1:      BRIDGEGLT1,
         }[_pid];
         if (cfg) startPuzzle(cfg);
       }
