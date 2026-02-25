@@ -405,6 +405,13 @@
           <span class="difficulty medium">6 pieces · Medium</span>
         </div>
       </div>
+      <div class="puzzle-card" data-puzzle="bridgeglt">
+        <div class="card-preview" id="preview-bridgeglt"></div>
+        <div class="card-info">
+          <h2>Bridge</h2>
+          <span class="difficulty hard">7 pieces · Hard</span>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -444,6 +451,7 @@
   <script src="models/origami-crane.js"></script>
   <script src="models/origami-bird2.js"></script>
   <script src="models/lantarn.js"></script>
+  <script src="models/bridgeglt.js"></script>
 
   <script type="module">
     import * as THREE from 'three';
@@ -499,6 +507,7 @@
 
     const ORIGAMI_BIRD2_GLB = window.ORIGAMI_BIRD2_GLB;
     const LANTARN_GLB       = window.LANTARN_GLB;
+    const BRIDGEGLT_GLB     = window.BRIDGEGLT_GLB;
     const ORIGAMI_CRANE_GLB = window.ORIGAMI_CRANE_GLB;
 
     const BRIDGE = {
@@ -553,6 +562,16 @@
         { y: 1.10, r: 0.65 },
       ],
       seamsByPiece: { 0: [0], 1: [0, 1], 2: [1] },
+    };
+
+    const BRIDGEGLT = {
+      id:                 'bridgeglt',
+      type:               'glb',
+      url:                BRIDGEGLT_GLB,
+      totalPieces:        7,
+      snapDistance:       0.45,
+      useMeshParts:       true,
+      wireframeThreshold: 0,
     };
 
     const LANTARN = {
@@ -1442,6 +1461,7 @@
 
                   : id === 'origami-bird2'  ? ORIGAMI_BIRD2
                   : id === 'lantarn'        ? LANTARN
+                  : id === 'bridgeglt'     ? BRIDGEGLT
 
                   : BRIDGE;
         _initAudio();
@@ -1602,6 +1622,7 @@
 
     createGLBMiniPreview('preview-origami-bird2', ORIGAMI_BIRD2_GLB, true);
     createGLBMiniPreview('preview-lantarn',       LANTARN_GLB,       true);
+    createGLBMiniPreview('preview-bridgeglt',     BRIDGEGLT_GLB,     true);
 
     // ── Render Loop ────────────────────────────────────────────────────────────────
     const clock = new THREE.Clock();
@@ -1701,6 +1722,7 @@
           'origami-crane': ORIGAMI_CRANE,
           lantern:         LANTERN,
           lantarn:         LANTARN,
+          bridgeglt:       BRIDGEGLT,
         }[_pid];
         if (cfg) startPuzzle(cfg);
       }
