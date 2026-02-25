@@ -1185,6 +1185,115 @@
       activeParticles.push({ points: pts, vels, posArr, age: 0 });
     }
 
+    // ── Audio System ───────────────────────────────────────────────────────────────
+    let _ac = null, _masterGain, _reverbSend, _musicGain, _musicTimer;
+
+    function _initAudio() {
+      if (_ac) return;
+      _ac = new (window.AudioContext || window.webkitAudioContext)();
+
+      _masterGain = _ac.createGain();
+      _masterGain.gain.value = 0.7;
+      _masterGain.connect(_ac.destination);
+
+      // Synthetic reverb impulse response (~2.5 s room)
+      const conv = _ac.createConvolver();
+      const len  = _ac.sampleRate * 2.5;
+      const ir   = _ac.createBuffer(2, len, _ac.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const d = ir.getChannelData(ch);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+      }
+      conv.buffer = ir;
+      _reverbSend = _ac.createGain(); _reverbSend.gain.value = 0.32;
+      _reverbSend.connect(conv); conv.connect(_masterGain);
+
+      _musicGain = _ac.createGain(); _musicGain.gain.value = 0.16;
+      _musicGain.connect(_masterGain);
+      _musicGain.connect(_reverbSend);
+
+      _startMusic();
+    }
+
+    // Plucked koto-like note: triangle fundamental + sine harmonics + sharp attack + long decay
+    function _koto(freq, t, vel, dest) {
+      dest = dest || _musicGain;
+      const env = _ac.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(vel, t + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+      env.connect(dest);
+      [[1, 'triangle', 1.0], [2, 'sine', 0.35], [3, 'sine', 0.12]].forEach(([m, type, a]) => {
+        const g = _ac.createGain(); g.gain.value = a;
+        const o = _ac.createOscillator(); o.type = type; o.frequency.value = freq * m;
+        o.connect(g); g.connect(env);
+        o.start(t); o.stop(t + 1.15);
+      });
+    }
+
+    // E minor pentatonic: E3 G3 A3 B3 D4 E4 G4 A4 B4 D5 E5
+    const _P = [164.81, 196.00, 220.00, 246.94, 293.66, 329.63, 392.00, 440.00, 493.88, 587.33, 659.25];
+    const _BEAT = 60 / 66; // 66 BPM
+    const _PATTERN = [   // [note_index, beat_offset, velocity]
+      [5,  0.0,  0.55],  // E4
+      [6,  1.5,  0.28],  // G4
+      [7,  2.5,  0.42],  // A4
+      [8,  3.25, 0.22],  // B4
+      [5,  4.5,  0.50],  // E4
+      [4,  5.5,  0.26],  // D4
+      [2,  6.25, 0.20],  // A3
+      [1,  7.5,  0.18],  // G3
+      [5,  8.5,  0.48],  // E4
+      [6,  9.25, 0.26],  // G4
+      [8,  10.0, 0.38],  // B4
+      [10, 11.0, 0.28],  // E5
+    ];
+    const _LOOP_LEN = 12 * _BEAT;
+
+    function _scheduleLoop(t) {
+      _PATTERN.forEach(([ni, beat, vel]) => _koto(_P[ni], t + beat * _BEAT, vel));
+    }
+
+    function _startMusic() {
+      let next = _ac.currentTime + 1.0; // gentle 1 s lead-in
+      _scheduleLoop(next);
+      next += _LOOP_LEN;
+      function tick() {
+        while (_ac.currentTime + 0.5 >= next) { _scheduleLoop(next); next += _LOOP_LEN; }
+        _musicTimer = setTimeout(tick, 100);
+      }
+      _musicTimer = setTimeout(tick, 100);
+    }
+
+    function playSnapSFX() {
+      if (!_ac) return;
+      const t   = _ac.currentTime;
+      const env = _ac.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.22, t + 0.003);
+      env.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      env.connect(_masterGain);
+      env.connect(_reverbSend);
+      const o = _ac.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, t);
+      o.frequency.exponentialRampToValueAtTime(698, t + 0.07);
+      o.connect(env);
+      o.start(t); o.stop(t + 0.6);
+    }
+
+    function playCompleteSFX() {
+      if (!_ac) return;
+      const t = _ac.currentTime;
+      [_P[5], _P[7], _P[8], _P[9], _P[10]].forEach((freq, i) => {
+        _koto(freq, t + i * 0.22, 0.45, _masterGain);
+        // also send to reverb for extra bloom
+        const rv = _ac.createGain(); rv.gain.value = 0.45;
+        rv.connect(_reverbSend);
+        _koto(freq, t + i * 0.22, 0.45, rv);
+      });
+    }
+
     // ── Game Logic ─────────────────────────────────────────────────────────────────
     function onSnap(id) {
       const piece = mainMeshes[id];
@@ -1194,6 +1303,7 @@
       const pPos = piece.userData.targetPosition.clone();
       if (piece.userData.pieceHeight) pPos.y += piece.userData.pieceHeight * 0.5;
       spawnSnapParticles(pPos);
+      playSnapSFX();
       if (gameState.placed === activePuzzleConfig.totalPieces) onComplete();
     }
 
@@ -1201,6 +1311,7 @@
       gameState.complete = true; gameState.spinAngle = 0;
       APP_STATE = 'complete';
       stopTimer();
+      playCompleteSFX();
 
       // Notify parent world if launched inside iframe
       if (window.parent !== window) {
@@ -1346,6 +1457,7 @@
                   : id === 'lantarn'        ? LANTARN
 
                   : BRIDGE;
+        _initAudio();
         startPuzzle(cfg);
       });
     });
