@@ -398,13 +398,6 @@
           <span class="difficulty hard">7 pieces · Hard</span>
         </div>
       </div>
-      <div class="puzzle-card" data-puzzle="lantarn">
-        <div class="card-preview" id="preview-lantarn"></div>
-        <div class="card-info">
-          <h2>Lantern</h2>
-          <span class="difficulty medium">6 pieces · Medium</span>
-        </div>
-      </div>
       <div class="puzzle-card" data-puzzle="bridgeglt">
         <div class="card-preview" id="preview-bridgeglt"></div>
         <div class="card-info">
@@ -457,7 +450,6 @@
 
   <script src="models/origami-crane.js"></script>
   <script src="models/origami-bird2.js"></script>
-  <script src="models/lantarn.js"></script>
   <script src="models/bridgeglt.js"></script>
   <script src="models/bridgeglt1.js"></script>
 
@@ -514,7 +506,6 @@
 
 
     const ORIGAMI_BIRD2_GLB = window.ORIGAMI_BIRD2_GLB;
-    const LANTARN_GLB       = window.LANTARN_GLB;
     const BRIDGEGLT_GLB     = window.BRIDGEGLT_GLB;
     const BRIDGEGLT1_GLB    = window.BRIDGEGLT1_GLB;
     const ORIGAMI_CRANE_GLB = window.ORIGAMI_CRANE_GLB;
@@ -592,16 +583,6 @@
       snapDistance:      0.45,
       useMeshParts:      true,
       useFallbackColors: true,
-      wireframeThreshold: 0,
-    };
-
-    const LANTARN = {
-      id:                 'lantarn',
-      type:               'glb',
-      url:                LANTARN_GLB,
-      totalPieces:        6,
-      snapDistance:       0.45,
-      useMeshParts:       true,
       wireframeThreshold: 0,
     };
 
@@ -1485,7 +1466,6 @@
                   : id === 'amphora'        ? AMPHORA
 
                   : id === 'origami-bird2'  ? ORIGAMI_BIRD2
-                  : id === 'lantarn'        ? LANTARN
                   : id === 'bridgeglt'     ? BRIDGEGLT
                   : id === 'bridgeglt1'    ? BRIDGEGLT1
 
@@ -1647,7 +1627,6 @@
     createGLBMiniPreview('preview-bridge',        BRIDGE_GLB);
 
     createGLBMiniPreview('preview-origami-bird2', ORIGAMI_BIRD2_GLB, true);
-    createGLBMiniPreview('preview-lantarn',       LANTARN_GLB,       true);
     createGLBMiniPreview('preview-bridgeglt',     BRIDGEGLT_GLB);
     createGLBMiniPreview('preview-bridgeglt1',    BRIDGEGLT1_GLB);
 
@@ -1748,7 +1727,6 @@
           'origami-bird2': ORIGAMI_BIRD2,
           'origami-crane': ORIGAMI_CRANE,
           lantern:         LANTERN,
-          lantarn:         LANTARN,
           bridgeglt:       BRIDGEGLT,
           bridgeglt1:      BRIDGEGLT1,
         }[_pid];
