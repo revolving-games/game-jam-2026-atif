@@ -1208,7 +1208,7 @@
       _reverbSend = _ac.createGain(); _reverbSend.gain.value = 0.32;
       _reverbSend.connect(conv); conv.connect(_masterGain);
 
-      _musicGain = _ac.createGain(); _musicGain.gain.value = 0.16;
+      _musicGain = _ac.createGain(); _musicGain.gain.value = 0.45;
       _musicGain.connect(_masterGain);
       _musicGain.connect(_reverbSend);
 
