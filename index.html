@@ -390,13 +390,7 @@
           <span class="difficulty easy">4 pieces · Easy</span>
         </div>
       </div>
-      <div class="puzzle-card" data-puzzle="origami-bird">
-        <div class="card-preview" id="preview-origami-bird"></div>
-        <div class="card-info">
-          <h2>Origami Bird</h2>
-          <span class="difficulty medium">5 pieces · Medium</span>
-        </div>
-      </div>
+
       <div class="puzzle-card" data-puzzle="origami-bird2">
         <div class="card-preview" id="preview-origami-bird2"></div>
         <div class="card-info">
@@ -446,7 +440,7 @@
   </div>
 
   <script src="models/bridge.js"></script>
-  <script src="models/origami-bird.js"></script>
+
   <script src="models/origami-crane.js"></script>
   <script src="models/origami-bird2.js"></script>
   <script src="models/lantarn.js"></script>
@@ -502,7 +496,7 @@
       seamsByPiece: { 0: [0], 1: [0, 1], 2: [1, 2], 3: [2, 3], 4: [3, 4], 5: [4, 5], 6: [5] },
     };
 
-    const ORIGAMI_BIRD_GLB  = window.ORIGAMI_BIRD_GLB;
+
     const ORIGAMI_BIRD2_GLB = window.ORIGAMI_BIRD2_GLB;
     const LANTARN_GLB       = window.LANTARN_GLB;
     const ORIGAMI_CRANE_GLB = window.ORIGAMI_CRANE_GLB;
@@ -515,15 +509,6 @@
       snapDistance: 0.45,   // tighter than default — each slice is ~1 unit wide
     };
 
-    const ORIGAMI_BIRD = {
-      id:                 'origami-bird',
-      type:               'glb',
-      url:                ORIGAMI_BIRD_GLB,
-      totalPieces:        5,
-      snapDistance:       0.45,
-      useMeshParts:       true,
-      wireframeThreshold: 0,
-    };
 
     const ORIGAMI_BIRD2 = {
       id:                 'origami-bird2',
@@ -1452,7 +1437,7 @@
         const id = card.dataset.puzzle;
         const cfg = id === 'kintsugi'       ? KINTSUGI
                   : id === 'amphora'        ? AMPHORA
-                  : id === 'origami-bird'   ? ORIGAMI_BIRD
+
                   : id === 'origami-bird2'  ? ORIGAMI_BIRD2
                   : id === 'lantarn'        ? LANTARN
 
@@ -1612,7 +1597,7 @@
     }
 
     createGLBMiniPreview('preview-bridge',        BRIDGE_GLB);
-    createGLBMiniPreview('preview-origami-bird',  ORIGAMI_BIRD_GLB,  true);
+
     createGLBMiniPreview('preview-origami-bird2', ORIGAMI_BIRD2_GLB, true);
     createGLBMiniPreview('preview-lantarn',       LANTARN_GLB,       true);
 
@@ -1709,7 +1694,7 @@
           kintsugi:        KINTSUGI,
           amphora:         AMPHORA,
           bridge:          BRIDGE,
-          'origami-bird':  ORIGAMI_BIRD,
+
           'origami-bird2': ORIGAMI_BIRD2,
           'origami-crane': ORIGAMI_CRANE,
           lantern:         LANTERN,
