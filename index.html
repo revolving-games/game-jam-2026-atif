@@ -932,6 +932,12 @@
       const slotW = (halfW * 2) / N;
       const slots = shuffleIndices(N);
 
+      // Proportional tray scaling: measure all pieces first, then scale relative to
+      // the smallest piece so it fills the slot (minimum = current size) and larger
+      // pieces appear proportionally bigger.
+      const pieceDims   = pieceGeos.map(g => { const bb = new THREE.Box3().setFromBufferAttribute(g.attributes.position); const sz = new THREE.Vector3(); bb.getSize(sz); return Math.max(sz.x, sz.y, sz.z); });
+      const sharedTScale = 0.5 / Math.min(...pieceDims);
+
       for (let i = 0; i < N; i++) {
         const color = PIECE_COLORS[i % PIECE_COLORS.length];
 
@@ -947,12 +953,12 @@
         mM.userData = {pieceId: i, placed: false, targetPosition: targets[i], targetAnim: null, baseMat: matM};
         mainMeshes.push(mM);
 
-        // Tray mesh — clone, auto-scale to fit tray height, placed in a random slot
+        // Tray mesh — clone, scale proportionally (smallest piece fills slot; larger appear bigger)
         const tGeo = pieceGeos[i].clone();
         tGeo.computeBoundingBox();
         const tSz  = new THREE.Vector3();
         tGeo.boundingBox.getSize(tSz);
-        const tScale = 0.5 / Math.max(tSz.x, tSz.y, tSz.z);
+        const tScale = sharedTScale;
         const matT = config.useMeshParts
           ? (config.useFallbackColors
               ? new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08})
