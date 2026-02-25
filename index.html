@@ -571,6 +571,7 @@
       totalPieces:        7,
       snapDistance:       0.45,
       useMeshParts:       true,
+      useFallbackColors:  true,   // DefaultPBR material has no colour; use PIECE_COLORS palette
       wireframeThreshold: 0,
     };
 
@@ -935,7 +936,9 @@
 
         // Main mesh — added to scene only while being dragged / once placed
         const matM = config.useMeshParts
-          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) { m.emissive?.setRGB(0.45, 0.42, 0.50); if ('emissiveIntensity' in m) m.emissiveIntensity = 1.0; } return m; })()
+          ? (config.useFallbackColors
+              ? new THREE.MeshStandardMaterial({color, roughness: 0.92, metalness: 0.06})
+              : (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) { m.emissive?.setRGB(0.45, 0.42, 0.50); if ('emissiveIntensity' in m) m.emissiveIntensity = 1.0; } return m; })())
           : (useOriginal
               ? srcMaterial.clone()
               : new THREE.MeshStandardMaterial({color, roughness: 0.92, metalness: 0.06}));
@@ -950,7 +953,9 @@
         tGeo.boundingBox.getSize(tSz);
         const tScale = 0.5 / Math.max(tSz.x, tSz.y, tSz.z);
         const matT = config.useMeshParts
-          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) { m.emissive?.setRGB(0.45, 0.42, 0.50); if ('emissiveIntensity' in m) m.emissiveIntensity = 1.0; } return m; })()
+          ? (config.useFallbackColors
+              ? new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08})
+              : (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) { m.emissive?.setRGB(0.45, 0.42, 0.50); if ('emissiveIntensity' in m) m.emissiveIntensity = 1.0; } return m; })())
           : (useOriginal
               ? srcMaterial.clone()
               : new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08}));
@@ -1622,7 +1627,7 @@
 
     createGLBMiniPreview('preview-origami-bird2', ORIGAMI_BIRD2_GLB, true);
     createGLBMiniPreview('preview-lantarn',       LANTARN_GLB,       true);
-    createGLBMiniPreview('preview-bridgeglt',     BRIDGEGLT_GLB,     true);
+    createGLBMiniPreview('preview-bridgeglt',     BRIDGEGLT_GLB);
 
     // ── Render Loop ────────────────────────────────────────────────────────────────
     const clock = new THREE.Clock();
