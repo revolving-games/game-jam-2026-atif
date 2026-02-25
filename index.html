@@ -397,6 +397,20 @@
           <span class="difficulty medium">5 pieces · Medium</span>
         </div>
       </div>
+      <div class="puzzle-card" data-puzzle="origami-bird2">
+        <div class="card-preview" id="preview-origami-bird2"></div>
+        <div class="card-info">
+          <h2>Origami Bird 2</h2>
+          <span class="difficulty hard">7 pieces · Hard</span>
+        </div>
+      </div>
+      <div class="puzzle-card" data-puzzle="lantarn">
+        <div class="card-preview" id="preview-lantarn"></div>
+        <div class="card-info">
+          <h2>Lantern</h2>
+          <span class="difficulty medium">6 pieces · Medium</span>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -434,6 +448,8 @@
   <script src="models/bridge.js"></script>
   <script src="models/origami-bird.js"></script>
   <script src="models/origami-crane.js"></script>
+  <script src="models/origami-bird2.js"></script>
+  <script src="models/lantarn.js"></script>
 
   <script type="module">
     import * as THREE from 'three';
@@ -487,6 +503,8 @@
     };
 
     const ORIGAMI_BIRD_GLB  = window.ORIGAMI_BIRD_GLB;
+    const ORIGAMI_BIRD2_GLB = window.ORIGAMI_BIRD2_GLB;
+    const LANTARN_GLB       = window.LANTARN_GLB;
     const ORIGAMI_CRANE_GLB = window.ORIGAMI_CRANE_GLB;
 
     const BRIDGE = {
@@ -502,6 +520,16 @@
       type:               'glb',
       url:                ORIGAMI_BIRD_GLB,
       totalPieces:        5,
+      snapDistance:       0.45,
+      useMeshParts:       true,
+      wireframeThreshold: 0,
+    };
+
+    const ORIGAMI_BIRD2 = {
+      id:                 'origami-bird2',
+      type:               'glb',
+      url:                ORIGAMI_BIRD2_GLB,
+      totalPieces:        7,
       snapDistance:       0.45,
       useMeshParts:       true,
       wireframeThreshold: 0,
@@ -540,6 +568,16 @@
         { y: 1.10, r: 0.65 },
       ],
       seamsByPiece: { 0: [0], 1: [0, 1], 2: [1] },
+    };
+
+    const LANTARN = {
+      id:                 'lantarn',
+      type:               'glb',
+      url:                LANTARN_GLB,
+      totalPieces:        6,
+      snapDistance:       0.45,
+      useMeshParts:       true,
+      wireframeThreshold: 0,
     };
 
     // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1301,9 +1339,11 @@
     document.querySelectorAll('.puzzle-card').forEach(card => {
       card.addEventListener('click', () => {
         const id = card.dataset.puzzle;
-        const cfg = id === 'kintsugi'      ? KINTSUGI
-                  : id === 'amphora'       ? AMPHORA
-                  : id === 'origami-bird'  ? ORIGAMI_BIRD
+        const cfg = id === 'kintsugi'       ? KINTSUGI
+                  : id === 'amphora'        ? AMPHORA
+                  : id === 'origami-bird'   ? ORIGAMI_BIRD
+                  : id === 'origami-bird2'  ? ORIGAMI_BIRD2
+                  : id === 'lantarn'        ? LANTARN
 
                   : BRIDGE;
         startPuzzle(cfg);
@@ -1460,7 +1500,9 @@
     }
 
     createGLBMiniPreview('preview-bridge',        BRIDGE_GLB);
-    createGLBMiniPreview('preview-origami-bird',  ORIGAMI_BIRD_GLB, true);
+    createGLBMiniPreview('preview-origami-bird',  ORIGAMI_BIRD_GLB,  true);
+    createGLBMiniPreview('preview-origami-bird2', ORIGAMI_BIRD2_GLB, true);
+    createGLBMiniPreview('preview-lantarn',       LANTARN_GLB,       true);
 
     // ── Render Loop ────────────────────────────────────────────────────────────────
     const clock = new THREE.Clock();
@@ -1552,12 +1594,14 @@
       }
       if (_auto && _pid) {
         const cfg = {
-          kintsugi:       KINTSUGI,
-          amphora:        AMPHORA,
-          bridge:         BRIDGE,
-          'origami-bird': ORIGAMI_BIRD,
-          'origami-crane':ORIGAMI_CRANE,
-          lantern:        LANTERN,
+          kintsugi:        KINTSUGI,
+          amphora:         AMPHORA,
+          bridge:          BRIDGE,
+          'origami-bird':  ORIGAMI_BIRD,
+          'origami-bird2': ORIGAMI_BIRD2,
+          'origami-crane': ORIGAMI_CRANE,
+          lantern:         LANTERN,
+          lantarn:         LANTARN,
         }[_pid];
         if (cfg) startPuzzle(cfg);
       }
