@@ -916,7 +916,7 @@
 
         // Main mesh — added to scene only while being dragged / once placed
         const matM = config.useMeshParts
-          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) m.emissive?.setRGB(0.10, 0.10, 0.12); return m; })()
+          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) { m.emissive?.setRGB(0.45, 0.42, 0.50); if ('emissiveIntensity' in m) m.emissiveIntensity = 1.0; } return m; })()
           : (useOriginal
               ? srcMaterial.clone()
               : new THREE.MeshStandardMaterial({color, roughness: 0.92, metalness: 0.06}));
@@ -931,7 +931,7 @@
         tGeo.boundingBox.getSize(tSz);
         const tScale = 0.5 / Math.max(tSz.x, tSz.y, tSz.z);
         const matT = config.useMeshParts
-          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) m.emissive?.setRGB(0.10, 0.10, 0.12); return m; })()
+          ? (() => { const m = srcMaterials[i].clone(); if (m.color && m.color.r + m.color.g + m.color.b < 0.15) { m.emissive?.setRGB(0.45, 0.42, 0.50); if ('emissiveIntensity' in m) m.emissiveIntensity = 1.0; } return m; })()
           : (useOriginal
               ? srcMaterial.clone()
               : new THREE.MeshStandardMaterial({color, roughness: 0.90, metalness: 0.08}));
@@ -940,9 +940,10 @@
         const tx     = ((slot + 0.5) / N * 2 - 1) * halfW * 0.9;
         mT.position.set(tx, 0.35, 0);
         mT.scale.setScalar(tScale);
-        mT.rotation.x       = -0.18;
-        mT.userData.pieceId = i;
+        mT.rotation.x        = -0.18;
+        mT.userData.pieceId  = i;
         mT.userData.traySlot = slot;
+        mT.userData.baseEmissive = matT.emissive ? matT.emissive.clone() : new THREE.Color(0);
         trayScene.add(mT);
         trayMeshes.push(mT);
 
@@ -1093,9 +1094,10 @@
         const tx   = ((slot + 0.5) / N * 2 - 1) * halfW * 0.9;
         mT.position.set(tx, 0.35, 0);
         mT.scale.setScalar(0.5);
-        mT.rotation.x       = -0.18;
+        mT.rotation.x        = -0.18;
         mT.userData.pieceId  = def.id;
         mT.userData.traySlot = slot;
+        mT.userData.baseEmissive = matT.emissive ? matT.emissive.clone() : new THREE.Color(0);
         trayScene.add(mT);
         trayMeshes.push(mT);
 
@@ -1367,7 +1369,7 @@
       const hitObj = hit.length ? hit[0].object : null;
       const hov    = hitObj ? trayMeshes[hitObj.userData.pieceId] : null;
       if (hov !== hoveredTrayMesh) {
-        if (hoveredTrayMesh) hoveredTrayMesh.material.emissive.setHex(0x000000);
+        if (hoveredTrayMesh) hoveredTrayMesh.material.emissive.copy(hoveredTrayMesh.userData.baseEmissive);
         if (hov)             hov.material.emissive.setHex(0x3A2000);
         hoveredTrayMesh = hov;
       }
@@ -1382,7 +1384,7 @@
       if (!hits.length) return;
       const id = hits[0].object.userData.pieceId;
       if (mainMeshes[id].userData.placed) return;
-      if (hoveredTrayMesh) { hoveredTrayMesh.material.emissive.setHex(0x000000); hoveredTrayMesh = null; }
+      if (hoveredTrayMesh) { hoveredTrayMesh.material.emissive.copy(hoveredTrayMesh.userData.baseEmissive); hoveredTrayMesh = null; }
       trayMeshes[id].visible     = false;
       trayHitZones[id].visible   = false;
       activePiece                = mainMeshes[id];
